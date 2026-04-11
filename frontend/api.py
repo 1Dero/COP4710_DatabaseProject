@@ -6,16 +6,18 @@ connection = None
 cursor = None
 
 def connect():
+
     try:
         connection = mysql.connector.connect(
             host='localhost',
             user='root',          # Your MySQL username
-            password=os.environ.get('SQL_PASSWORD'),  # Your MySQL password
-            database='test_db'    # The name of your database
+            password='',  # Your MySQL password
+            database='RestaurantSales'    # The name of your database
         )
 
         if connection.is_connected():
             cursor = connection.cursor()
+            print('db connection established')
     except Error as e:
         print(f"Error: {e}")
 
