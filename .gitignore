@@ -1,2 +1,4 @@
 /Test/mysql_data
 frontend/__pycache__
+server/__pycache__
+Test/__pycache__
