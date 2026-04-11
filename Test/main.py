@@ -40,6 +40,27 @@ def start_mysql_server():
     time.sleep(5)
     return True
 
+def end_mysql_server():
+    """Safely shuts down the local MySQL server."""
+    # Locate the mysqladmin executable
+    MYSQL_ADMIN = os.path.join(BASE_DIR, "mysql", "bin", "mysqladmin.exe")
+    
+    if os.path.exists(MYSQL_ADMIN):
+        print("Shutting down MySQL...")
+        try:
+            # We use the 'shutdown' command via mysqladmin
+            subprocess.run([
+                MYSQL_ADMIN, 
+                "-u", "root", 
+                f"--port={DB_PORT}", 
+                "shutdown"
+            ], check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            print("MySQL stopped successfully.")
+        except subprocess.CalledProcessError:
+            print("MySQL was already stopped or could not be reached.")
+    else:
+        print("Could not find mysqladmin.exe to shut down the server.")
+
 def get_db_connection():
     """Returns a connection to the database."""
     return mysql.connector.connect(
@@ -122,8 +143,12 @@ class CRUDApp(ctk.CTk):
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
     if start_mysql_server():
-        ctk.set_appearance_mode("dark")
-        app = CRUDApp()
-        app.mainloop()
+        try:
+            ctk.set_appearance_mode("dark")
+            app = CRUDApp()
+            app.mainloop()
+        finally:
+            # This runs when the mainloop stops (window is closed)
+            end_mysql_server()
     else:
         print("Failed to launch MySQL. Check your 'mysql' folder.")
