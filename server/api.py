@@ -9,7 +9,7 @@ from tkinter import messagebox
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MYSQL_PATH = os.path.join(BASE_DIR, "mysql", "bin", "mysqld.exe")
 DATA_DIR = os.path.join(BASE_DIR, "mysql_data")
-DB_PORT = "3306" 
+DB_PORT = 3306
 
 
 def start_mysql_server():
@@ -68,13 +68,17 @@ def get_db_connection(db_name='RestaurantSales'):
     """Returns a connection to the database."""
     return mysql.connector.connect(
         host="localhost",
+        port=DB_PORT,
         user="root",
-        password="",
-        database=db_name
+        password=""
     )
 
-class CRUDApp(): # main api class
+class CRUDApp(ctk.CTk): # main api class
     def __init__(self): # constructor
+        super().__init__()
+        self.title("Database Manager")
+        self.geometry("500x400")
+
         try:
             self.connection = get_db_connection()
 
@@ -119,6 +123,13 @@ class CRUDApp(): # main api class
 # --- MAIN EXECUTION ---
 # everything that appears here will appear the same to frontend
 if __name__ == "__main__":
-    app = CRUDApp()
-
-    # test functions and their outputs here
+    if start_mysql_server():
+        try:
+            ctk.set_appearance_mode("dark")
+            app = CRUDApp()
+            app.mainloop()
+        finally:
+            # This runs when the mainloop stops (window is closed)
+            end_mysql_server()
+    else:
+        print("Failed to launch MySQL. Check your 'mysql' folder.")
