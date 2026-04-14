@@ -96,36 +96,308 @@ class CRUDApp(ctk.CTk):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("CREATE DATABASE IF NOT EXISTS my_app_db")
-            cursor.execute("USE my_app_db")
+            cursor.execute("CREATE DATABASE IF NOT EXISTS RestaurantSales")
+            cursor.execute("USE RestaurantSales")
+            
+
+            #   =======================
+            #          Entities
+            #   =======================
+
+            # Employee Table
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL
-                )
-            """)
+            CREATE TABLE IF NOT EXISTS Employees(
+                eid INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                email VARCHAR(50),
+                phone VARCHAR(20)
+            )
+        """)
+            
+            # Full Time Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS FullTime(
+                eid INT PRIMARY KEY,
+                salary DECIMAL(10,2) UNSIGNED NOT NULL,
+                FOREIGN KEY (eid) REFERENCES Employees(eid)
+                    ON DELETE CASCADE
+            )
+        """)
+
+            # Part Time Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS PartTime(
+                eid INT PRIMARY KEY,
+                hours INT NOT NULL,
+                pay DECIMAL(10,2) NOT NULL,
+                FOREIGN KEY (eid) REFERENCES Employees(eid)
+                    ON DELETE CASCADE
+            )
+        """)
+            
+            # Menu Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Menu(
+                mid INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                price DECIMAL(10,2) NOT NULL
+            )
+        """)
+            
+            # Orders Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Orders(
+                oid INT AUTO_INCREMENT PRIMARY KEY,
+                price DECIMAL(10,2) NOT NULL,
+                tip DECIMAL(10,2) DEFAULT 0,
+                o_date DATE NOT NULL
+            )
+        """)
+
+            # Item Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Item(
+                iid INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                cost DECIMAL(10,2) UNSIGNED NOT NULL,
+                quantity INT UNSIGNED NOT NULL
+            )
+        """)
+            
+            # Ingredients Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Ingredients(
+                iid INT PRIMARY KEY,
+                FOREIGN KEY (iid) REFERENCES Item(iid)
+                    ON DELETE CASCADE
+            )
+        """)
+            
+            # Appliances Table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Appliances(
+                iid INT PRIMARY KEY,
+                FOREIGN KEY (iid) REFERENCES Item(iid)
+                    ON DELETE CASCADE
+            )
+        """)
+            
+            #   =======================
+            #       Relationships
+            #   =======================
+
+
+            # OrderMenuItem
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS OrderMenuItem(
+                oid INT,
+                mid INT,
+                PRIMARY KEY (oid, mid),
+                FOREIGN KEY (oid) REFERENCES Orders(oid)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (mid) REFERENCES Menu(mid)
+            )
+        """)
+            
+            # MenuItemUses
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS MenuItemUses(
+                mid INT,
+                iid INT,
+                PRIMARY KEY (mid, iid),
+                FOREIGN KEY (mid) REFERENCES Menu(mid),
+                FOREIGN KEY (iid) REFERENCES Ingredients(iid)
+            )
+        """)
+            
             conn.commit()
             cursor.close()
             conn.close()
         except Exception as e:
             print(f"Setup Error: {e}")
+        
+        messagebox.showinfo("Success", "Database tables set up successfully!")
 
-    def add_user(self):
-        name = self.name_entry.get()
-        if not name:
-            messagebox.showwarning("Input Error", "Please enter a name")
+    def add_full_time_employee(self, name, role, email, phone, salary):
+        if not name.strip() or not role.strip():
+            messagebox.showwarning("Input Error", "Employee name and role are required")
             return
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("USE my_app_db")
-        cursor.execute("INSERT INTO users (name) VALUES (%s)", (name,))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        self.name_entry.delete(0, 'end')
-        messagebox.showinfo("Success", f"Added {name} to the database!")
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Insert into Employees (superclass)
+            cursor.execute("""
+                INSERT INTO Employees (name, role, email, phone)
+                VALUES (%s, %s, %s, %s)
+            """, (name.strip(), role.strip(), email.strip(), phone.strip()))
+
+            eid = cursor.lastrowid
+
+            # Insert into FullTime (subclass)
+            cursor.execute("""
+                INSERT INTO FullTime (eid, salary)
+                VALUES (%s, %s)
+            """, (eid, salary))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            messagebox.showinfo("Success", f"Full-time employee added with eid = {eid}")
+            return eid
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+    
+    def add_part_time_employee(self, name, role, email, phone, hours, pay):
+        if not name.strip() or not role.strip():
+            messagebox.showwarning("Input Error", "Employee name and role are required")
+            return
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Insert into Employees (superclass)
+            cursor.execute("""
+                INSERT INTO Employees (name, role, email, phone)
+                VALUES (%s, %s, %s, %s)
+            """, (name.strip(), role.strip(), email.strip(), phone.strip()))
+
+            eid = cursor.lastrowid
+
+            # Insert into PartTime (subclass)
+            cursor.execute("""
+                INSERT INTO PartTime (eid, hours, pay)
+                VALUES (%s, %s, %s)
+            """, (eid, hours, pay))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            messagebox.showinfo("Success", f"Part-time employee added with eid = {eid}")
+            return eid
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+    
+    def add_ingredient(self, name, cost, quantity):
+        if not name.strip():
+            messagebox.showwarning("Input Error", "Ingredient name is required")
+            return
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Insert into Item
+            cursor.execute("""
+                INSERT INTO Item (name, cost, quantity)
+                VALUES (%s, %s, %s)
+            """, (name.strip(), cost, quantity))
+
+            iid = cursor.lastrowid
+
+            # Insert into Ingredients
+            cursor.execute("""
+                INSERT INTO Ingredients (iid)
+                VALUES (%s)
+            """, (iid,))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            messagebox.showinfo("Success", f"Ingredient added with iid = {iid}")
+            return iid
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+
+    def add_appliance(self, name, cost, quantity):
+        if not name.strip():
+            messagebox.showwarning("Input Error", "Appliance name is required")
+            return
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Insert into Item
+            cursor.execute("""
+                INSERT INTO Item (name, cost, quantity)
+                VALUES (%s, %s, %s)
+            """, (name.strip(), cost, quantity))
+
+            iid = cursor.lastrowid
+
+            # Insert into Appliances
+            cursor.execute("""
+                INSERT INTO Appliances (iid)
+                VALUES (%s)
+            """, (iid,))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            messagebox.showinfo("Success", f"Appliance added with iid = {iid}")
+            return iid
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+    
+    def add_menu(self, name, price):
+        if not name.strip():
+            messagebox.showwarning("Input Error", "Menu name is required")
+            return
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO Menu (name, price)
+                VALUES (%s, %s)
+            """, (name.strip(), price))
+
+            conn.commit()
+            mid = cursor.lastrowid
+
+            cursor.close()
+            conn.close()
+
+            messagebox.showinfo("Success", f"Menu item added with mid = {mid}")
+            return mid
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+
+    def add_order(self, price, o_date, tip=0):
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO Orders (price, tip, o_date)
+                VALUES (%s, %s, %s)
+            """, (price, tip, o_date))
+
+            conn.commit()
+            oid = cursor.lastrowid
+
+            cursor.close()
+            conn.close()
+
+            messagebox.showinfo("Success", f"Order added with oid = {oid}")
+            return oid
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
 
     def list_users(self):
         conn = get_db_connection()
