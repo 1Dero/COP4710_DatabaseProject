@@ -93,6 +93,8 @@ class Connection():
         if not start_mysql_server():
             print("Failed to initiate MySQL process.")
             sys.exit(1)
+        else:
+            print("MySQL server has been started.")
 
         # Retry logic: Server might take a moment to bind to the port
 
@@ -106,11 +108,12 @@ class Connection():
                     print('Database connection established')
                     return
             except mysql.connector.Error as err:
-                print(f"Waiting for MySQL... ({retries} retries left)")
-                time.sleep(5)
+                print(f"Waiting for MySQL... ({retries} retries left). Error: {err}")
+                time.sleep(2)
                 retries -= 1
         
         print("Error: Could not connect to MySQL after multiple attempts.")
+        sys.exit(1)
 
     def close(self):
         """Manually close the connection and stop the server."""
@@ -136,7 +139,7 @@ class Connection():
     def setup_database(self):
         conn = get_server_connection()
         cursor = conn.cursor()
-
+        print("Creating RestaurantSales Database...")
         try:
             with open(os.path.join(PARENT_DIR, "FP_39.sql"), "r", encoding="utf-8") as f:
                 sql_script = f.read()
@@ -145,6 +148,7 @@ class Connection():
                 statements = sql_script.split(';')
                 for statement in statements:
                     if statement.strip():
+                        print(f"Executing: {statement}\n")
                         cursor.execute(statement)
                 
                 # We MUST consume the generator fully to finish the execution
@@ -152,15 +156,11 @@ class Connection():
             # CRITICAL: Commit the changes to the disk
             conn.commit()
             
-
-        except StopIteration as e:
-            # This exception is expected when the generator is exhausted
-            print("SQL script execution completed.")
-            
         except Exception as e:
             print(f"Setup Error: {e}")
             conn.rollback()
         finally:
+            print("\n----------------------------- Database created -----------------------------\n")
             cursor.close()
             conn.close()
 
@@ -344,4 +344,4 @@ class Connection():
 # everything that appears here will appear the same to frontend
 if __name__ == "__main__":
     server = Connection()
-    server.list_employees()
+    server.list_table("Employees")
