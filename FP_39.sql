@@ -4,12 +4,12 @@ CREATE DATABASE RestaurantSales;
 USE RestaurantSales;
 
 CREATE TABLE Restaurant(
-	rid INT PRIMARY KEY,
+	rid INT AUTO_INCREMENT PRIMARY KEY,
 	name VARCHAR(50)
 );
 
 CREATE TABLE Employees(
-	eid INT PRIMARY KEY,
+	eid INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50),
     role VARCHAR(50),
     email VARCHAR(50),
@@ -35,7 +35,7 @@ CREATE TABLE FullTime(
 
 
 CREATE TABLE Menu(
-	mid INT PRIMARY KEY,
+	mid INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50),
     price FLOAT,
     rid INT,
@@ -43,7 +43,7 @@ CREATE TABLE Menu(
 );
 
 CREATE TABLE Item(
-	iid INT PRIMARY KEY,
+	iid INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50),
     cost FLOAT UNSIGNED,
     quantity INT UNSIGNED
@@ -61,7 +61,7 @@ CREATE TABLE Appliances(
 
 
 CREATE TABLE Orders(
-	oid INT PRIMARY KEY,
+	oid INT AUTO_INCREMENT PRIMARY KEY,
     price FLOAT,
     tip FLOAT DEFAULT 0,
     o_date DATE,
