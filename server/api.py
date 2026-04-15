@@ -68,31 +68,59 @@ def end_mysql_server():
 
 
 # helper functions
-def get_db_connection(db_name='RestaurantSales'):
+def get_db_connection(db_name="RestaurantSales"):
     """Returns a connection to the database."""
     return mysql.connector.connect(
         host="localhost",
         port=DB_PORT,
         user="root",
-        password=""
+        password="",
     )
 
 class Connection(): 
-    def __init__(self): # constructor
+    def __init__(self):
+        self.connection = None
+        self.cursor = None
+
+        if not start_mysql_server():
+            print("Failed to initiate MySQL process.")
+            sys.exit(1)
+
+        # Retry logic: Server might take a moment to bind to the port
+        retries = 5
+        while retries > 0:
+            try:
+                self.connection = get_db_connection()
+                if self.connection.is_connected():
+                    self.cursor = self.connection.cursor()
+                    print('Database connection established')
+                    return
+            except mysql.connector.Error as err:
+                print(f"Waiting for MySQL... ({retries} retries left)")
+                time.sleep(5)
+                retries -= 1
+        
+        print("Error: Could not connect to MySQL after multiple attempts.")
+
+    def close(self):
+        """Manually close the connection and stop the server."""
         try:
-            self.connection = get_db_connection()
+            if self.cursor:
+                self.cursor.close()
+            if self.connection and self.connection.is_connected():
+                self.connection.close()
+                print("MySQL connection closed.")
+        except Exception:
+            # Ignore errors during shutdown if objects are already gone
+            pass
+        finally:
+            end_mysql_server()
 
-            if self.connection.is_connected():
-                self.cursor = self.connection.cursor()
-                print('db connection established')
+    def __del__(self):
+        try:
+            self.close()
         except:
-            print(f"Error couldnt connect to db")
-
-    def __del__(self): # destructor 
-        if self.connection and self.connection.is_connected():
-            self.cursor.close()
-            self.connection.close()
-            print("\nMySQL connection closed.")
+            pass
 
 
     def setup_table(self):
@@ -273,7 +301,15 @@ class Connection():
         except Exception as e:
             messagebox.showerror("Database Error", str(e))
 
-    
+    def list_employees(self):
+        conn = self.connection
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM Employees")
+        rows = cursor.fetchall()
+        
+        employees = "\n".join([r[0] for r in rows])
+        messagebox.showinfo("Employees", employees if employees else "No employees found.")
 
     
 
@@ -281,4 +317,4 @@ class Connection():
 # --- MAIN EXECUTION ---
 # everything that appears here will appear the same to frontend
 if __name__ == "__main__":
-    pass
+    server = Connection()
