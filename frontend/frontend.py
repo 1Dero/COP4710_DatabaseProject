@@ -30,8 +30,8 @@ class foo:
 class ClickableLabel(ctk.CTkFrame):
     def __init__(self, master, placeholder="Blank", **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
-        
-        self.placeholder = foo.get_restaurant_name()
+        self.master = master 
+        self.placeholder = master.server.get_restaurant_name()
         
         # 1. The Label (Visible by default)
         self.label = ctk.CTkLabel(self, text=self.placeholder, cursor="hand2")
@@ -62,7 +62,7 @@ class ClickableLabel(ctk.CTkFrame):
         if input_text != "":
             # Run your custom function here
 
-            foo.set_restaurant_name(input_text) # submits r name
+            self.master.server.set_restaurant_name(input_text)
             
             # Update label and swap back
             self.label.configure(text=input_text)
@@ -75,13 +75,54 @@ class ClickableLabel(ctk.CTkFrame):
             self.entry.pack_forget()
             self.label.pack(padx=5, pady=5)
 
+# --- Popup Window Class ---
+class InputPopup(ctk.CTkToplevel):
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.columns = parent.columns
+        self.title("Add New Entry")
+        self.geometry("300x250")
+        
+        # Ensure the popup stays on top and grabs focus
+        self.attributes("-topmost", True)
+        self.grab_set()
+
+        self.label = ctk.CTkLabel(self, text="Enter Details", font=("Arial", 16, "bold"))
+        self.label.pack(pady=10)
+
+        self.entires = {}
+        for col in self.columns:
+            self.entires[col] = ctk.CTkEntry(self, placeholder_text=col)
+            self.entires[col].pack(pady=10, padx=20, fill="x")
+
+        self.submit_btn = ctk.CTkButton(self, text="Submit", command=self.submit)
+        self.submit_btn.pack(pady=20)
+
+    def submit(self):
+        name = self.name_entry.get()
+        email = self.email_entry.get()
+
+        if name and email:
+            if True:
+                messagebox.showinfo("Success", "Data added to MySQL!")
+                self.destroy() # Close popup
+            else:
+                messagebox.showerror("Error", "Failed to connect to database.")
+        else:
+            messagebox.showwarning("Warning", "All fields are required.")
+
+
 class MySQLDataTable(ctk.CTkFrame):
-    def __init__(self, master, columns, db_config=None, **kwargs):
+    def __init__(self, master, columns, table_name, server, is_view=False, db_config=None, **kwargs):
         super().__init__(master, **kwargs)
         
+        self.master = master
+        self.name = table_name
+        self.server = server
         self.columns = columns
         self.db_config = db_config
         self.full_data = []
+        self.popup_window = None
 
         # Layout Configuration
         self.grid_columnconfigure(0, weight=1)
@@ -95,9 +136,8 @@ class MySQLDataTable(ctk.CTkFrame):
         self.search_entry.pack(side="left", padx=(0, 10))
         self.search_entry.bind("<KeyRelease>", self.filter_data)
 
-        self.add_btn = ctk.CTkButton(self.top_bar, text="+ Add Entry", fg_color="#28a745", 
-                                     hover_color="#218838", width=100, command=self.add_action)
-        self.add_btn.pack(side="right")
+
+        
 
         # --- 2. Table Container ---
         self.container = ctk.CTkFrame(self)
@@ -120,14 +160,16 @@ class MySQLDataTable(ctk.CTkFrame):
         self.action_bar = ctk.CTkFrame(self, fg_color="transparent")
         self.action_bar.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
 
-        self.edit_btn = ctk.CTkButton(self.action_bar, text="Edit Selected", 
-                                      fg_color="#1f538d", command=self.edit_action)
-        self.edit_btn.pack(side="left", padx=(0, 10))
 
-        self.delete_btn = ctk.CTkButton(self.action_bar, text="Delete Selected", 
-                                        fg_color="#dc3545", hover_color="#c82333", 
-                                        command=self.delete_action)
-        self.delete_btn.pack(side="left")
+        if not is_view:
+            self.add_btn = ctk.CTkButton(self.action_bar, text="+ Add Entry", fg_color="#28a745", 
+                                         hover_color="#218838", command=self.add_action)
+            self.add_btn.pack(side="left", padx=10)
+
+            self.delete_btn = ctk.CTkButton(self.action_bar, text="Delete Selected", 
+                                            fg_color="#dc3545", hover_color="#c82333", 
+                                            command=self.delete_action)
+            self.delete_btn.pack(side="left")
 
         self._apply_style()
 
@@ -142,21 +184,14 @@ class MySQLDataTable(ctk.CTkFrame):
     # --- CRUD Placeholder Logic ---
 
     def add_action(self):
-        """Logic for adding a new record (usually opens a popup)."""
-        # Example: Open a CTkToplevel window with entry fields
-        print("Add button clicked: Open input dialog or new window here.")
+        # Prevent opening multiple instances of the same popup
+        if self.popup_window is None or not self.popup_window.winfo_exists():
+            self.popup_window = InputPopup(self)
+        else:
+            self.popup_window.focus()
         # After database insertion, you would call self.fetch_from_mysql()
-
-    def edit_action(self):
-        """Identifies selected row and triggers edit logic."""
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Selection Error", "Please select a row to edit.")
-            return
-        
-        item_values = self.tree.item(selected_item)['values']
-        print(f"Editing record: {item_values}")
-        # Here you would open a popup pre-filled with item_values
+            
+    
 
     def delete_action(self):
         """Identifies selected row and removes it."""
@@ -165,12 +200,16 @@ class MySQLDataTable(ctk.CTkFrame):
             messagebox.showwarning("Selection Error", "Please select a row to delete.")
             return
 
-        confirm = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this record?")
-        if confirm:
-            item_values = self.tree.item(selected_item)['values']
-            print(f"Deleting record with ID: {item_values[0]}")
+        if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this record?"):
+            return
+        
+        item_values = self.tree.item(selected_item)['values']
+        print(f"Deleting record with ID: {item_values[0]}")
+        self.server.delete_by_id(self.name,item_values[0])
+        
+        self.tree.delete(selected_item)
+
             # Run SQL: DELETE FROM table WHERE id = item_values[0]
-            self.tree.delete(selected_item)
 
     # --- Data Handling ---
 
@@ -188,87 +227,7 @@ class MySQLDataTable(ctk.CTkFrame):
         query = self.search_entry.get().lower()
         filtered = [row for row in self.full_data if any(query in str(cell).lower() for cell in row)]
         self.update_view(filtered)
-class EntryFormPopup(ctk.CTkToplevel):
-    def __init__(self, master, table_name, columns, server, success_callback, is_edit=False, row_data=None):
-        super().__init__(master)
-        
-        self.is_edit = is_edit
-        self.table_name = table_name
-        self.columns = columns
-        self.server = server
-        self.success_callback = success_callback
-        self.row_data = row_data # Expects a dict: {"name": "John", "role": "Dev"}
-        self.entries = {}
 
-        self.title("Edit Record" if is_edit else "Add New Record")
-        self.geometry("400x550")
-        self.attributes("-topmost", True)
-        self.grab_set()
-
-        self.create_widgets()
-
-    def create_widgets(self):
-        title_text = f"Editing ID: {self.row_data.get('id')}" if self.is_edit else "Add New Entry"
-        ctk.CTkLabel(self, text=title_text, font=("Arial", 18, "bold")).pack(pady=20)
-
-        # Generate fields for all columns except 'id'
-        for col in self.columns:
-            if col.lower() == 'id': continue
-            
-            frame = ctk.CTkFrame(self, fg_color="transparent")
-            frame.pack(fill="x", padx=30, pady=8)
-            
-            ctk.CTkLabel(frame, text=col.capitalize(), width=100, anchor="w").pack(side="left")
-            entry = ctk.CTkEntry(frame)
-            entry.pack(side="right", expand=True, fill="x")
-            
-            # If in Edit mode, pre-fill the entry with existing data
-            if self.is_edit and self.row_data and col in self.row_data:
-                entry.insert(0, str(self.row_data[col]))
-                
-            self.entries[col] = entry
-
-        # Action Button
-        btn_text = "Update Record" if self.is_edit else "Save to Database"
-        btn_color = "#1f538d" if self.is_edit else "#28a745"
-        
-        self.action_btn = ctk.CTkButton(self, text=btn_text, fg_color=btn_color, command=self.submit)
-        self.action_btn.pack(pady=30)
-
-    def submit(self):
-        # Gather data from entry fields
-        form_values = {col: entry.get() for col, entry in self.entries.items()}
-        
-        if any(v == "" for v in form_values.values()):
-            messagebox.showwarning("Warning", "Please fill in all fields.")
-            return
-
-        try:
-            conn = mysql.connector.connect(**self.db_config)
-            cursor = conn.cursor()
-
-            if self.is_edit:
-                # SQL UPDATE Logic
-                set_clause = ", ".join([f"{col} = %s" for col in form_values.keys()])
-                sql = f"UPDATE {self.table_name} SET {set_clause} WHERE id = %s"
-                values = list(form_values.values()) + [self.row_data['id']]
-            else:
-                # SQL INSERT Logic
-                cols_str = ", ".join(form_values.keys())
-                placeholders = ", ".join(["%s"] * len(form_values))
-                sql = f"INSERT INTO {self.table_name} ({cols_str}) VALUES ({placeholders})"
-                values = list(form_values.values())
-
-            cursor.execute(sql, values)
-            conn.commit()
-            conn.close()
-
-            messagebox.showinfo("Success", "Database updated successfully!")
-            self.success_callback() # Refresh parent table
-            self.destroy()
-
-        except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", f"Error: {err}")
 
 
 class PortableDatabaseTabs(ctk.CTkTabview):
@@ -309,7 +268,7 @@ class PortableDatabaseTabs(ctk.CTkTabview):
 class MainApp(ctk.CTk):
     def __init__(self, server):
         super().__init__()
-        self.geometry("400x200")
+        self.geometry("1000x800")
         self.title("Restaurant Sales")
 
         self.server = server
@@ -340,6 +299,7 @@ class MainApp(ctk.CTk):
         )
         self.tabview.pack(expand=True, fill="both", padx=20, pady=20)
 
+        self.views = ('EmployeeView','RestaurantSummary') # views, no add button
         # 4. Pre-create the tab structures
         for name in self.categories:
             tab_object = self.tabview.add(name)
@@ -354,7 +314,12 @@ class MainApp(ctk.CTk):
                 ORDER BY ORDINAL_POSITION
             """)
 
-            table = MySQLDataTable(tab_object, columns=self.server.cursor.fetchall())
+
+            table = MySQLDataTable(tab_object, 
+                                   columns=self.server.cursor.fetchall(), 
+                                   table_name=name,
+                                   server=self.server,
+                                   is_view=name in self.views)
             table.pack(expand=True, fill="both")
             
             # Save reference to the table so we can update it later

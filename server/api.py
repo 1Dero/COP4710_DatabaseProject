@@ -334,6 +334,9 @@ class Connection():
     def delete_by_id(self, table_name, record_id):
         try:
             pk_map = {
+                "MenuItemUses":"mid",
+                "OrderMenuItem":"oid",
+                "RestaurantStock":"rid",
                 "Restaurant": "rid",
                 "Employees": "eid",
                 "PartTime": "eid",
