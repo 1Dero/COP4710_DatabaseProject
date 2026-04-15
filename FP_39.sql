@@ -22,14 +22,14 @@ CREATE TABLE PartTime(
 	eid INT PRIMARY KEY,
 	hours INT,
     pay FLOAT,
-	FOREIGN KEY (eid) REFERENCES Employees
+	FOREIGN KEY (eid) REFERENCES Employees(eid)
 		ON DELETE CASCADE
 );
 
 CREATE TABLE FullTime(
 	eid INT PRIMARY KEY,
 	salary INT UNSIGNED,
-	FOREIGN KEY (eid) REFERENCES Employees
+	FOREIGN KEY (eid) REFERENCES Employees(eid)
 		ON DELETE CASCADE
 );
 
@@ -39,7 +39,7 @@ CREATE TABLE Menu(
     name VARCHAR(50),
     price FLOAT,
     rid INT,
-    FOREIGN KEY (rid) REFERENCES Restaurant
+    FOREIGN KEY (rid) REFERENCES Restaurant(rid)
 );
 
 CREATE TABLE Item(
@@ -66,29 +66,29 @@ CREATE TABLE Orders(
     tip FLOAT DEFAULT 0,
     o_date DATE,
     rid INT,
-    FOREIGN KEY (rid) REFERENCES Restaurant
+    FOREIGN KEY (rid) REFERENCES Restaurant(rid)
 );
 
 
 CREATE TABLE OrderMenuItem(
 	oid INT,
     mid INT,
-    FOREIGN KEY (mid) REFERENCES Menu,
-    FOREIGN KEY (oid) REFERENCES Orders
+    FOREIGN KEY (mid) REFERENCES Menu(mid),
+    FOREIGN KEY (oid) REFERENCES Orders(oid)
 		ON DELETE CASCADE
 );
 
 CREATE TABLE MenuItemUses(
 	mid INT,
     iid INT,
-    FOREIGN KEY (mid) REFERENCES Menu,
-    FOREIGN KEY (iid) REFERENCES Ingredients
+    FOREIGN KEY (mid) REFERENCES Menu(mid),
+    FOREIGN KEY (iid) REFERENCES Ingredients(iid)
 );
 
 CREATE TABLE RestaurantStock(
 	rid INT,
     iid INT,
-    FOREIGN KEY (rid) REFERENCES Restaurant,
+    FOREIGN KEY (rid) REFERENCES Restaurant(rid),
     FOREIGN KEY (iid) REFERENCES Item(iid)
 );
 
@@ -145,23 +145,3 @@ INSERT INTO Orders VALUES (401, 25.00, 5.00, '2026-04-08', 1);
 INSERT INTO OrderMenuItem VALUES (401, 201);
 INSERT INTO MenuItemUses VALUES (201, 301);
 INSERT INTO RestaurantStock VALUES (1, 301), (2, 302);
-
--- ---------------------------------------------------------
--- PRINTING ALL DATA
--- ---------------------------------------------------------
-
-SELECT * FROM Restaurant;
-SELECT * FROM Employees;
-SELECT * FROM PartTime;
-SELECT * FROM FullTime;
-SELECT * FROM Menu;
-SELECT * FROM Item;
-SELECT * FROM Ingredients;
-SELECT * FROM Appliances;
-SELECT * FROM Orders;
-SELECT * FROM OrderMenuItem;
-SELECT * FROM MenuItemUses;
-SELECT * FROM RestaurantStock;
-
--- Printing the View
-SELECT * FROM EmployeeView;
