@@ -226,7 +226,7 @@ class PortableDatabaseTabs(ctk.CTkTabview):
 
 
 class MainApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, server):
         super().__init__()
         self.geometry("400x200")
         self.title("Editable Label Demo")
@@ -236,7 +236,15 @@ class MainApp(ctk.CTk):
         self.editable_field = ClickableLabel(self)
         self.editable_field.pack(side="top", anchor="nw", padx=5, pady=5)
 
-        self.categories = ["Engineering", "Marketing", "Sales", "HR"]
+        # 1. Execute the query
+        server.cursor.execute("SHOW TABLES")
+
+        # 2. Fetch all rows 
+        # Results look like: [('table1',), ('table2',)]
+        raw_tables = server.cursor.fetchall()
+
+        # 3. Flatten into a simple list of strings
+        self.categories = [table[0] for table in raw_tables]
         
         # 2. Store Table References
         # This dict will map Tab Names -> MySQLDataTable objects
@@ -289,8 +297,4 @@ class MainApp(ctk.CTk):
             ("103", "Charlie", department, "Busy"),
         ]
 
-if __name__ == "__main__":
-    server = Connection()
-    
-    frontend = MainApp()
-    frontend.mainloop()
+
