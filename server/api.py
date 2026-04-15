@@ -75,6 +75,16 @@ def get_db_connection(db_name="RestaurantSales"):
         port=DB_PORT,
         user="root",
         password="",
+        database=db_name
+    )
+
+def get_server_connection():
+    """Returns a connection to the database."""
+    return mysql.connector.connect(
+        host="localhost",
+        port=DB_PORT,
+        user="root",
+        password=""
     )
 
 class Connection(): 
@@ -87,9 +97,11 @@ class Connection():
             sys.exit(1)
 
         # Retry logic: Server might take a moment to bind to the port
+
         retries = 5
         while retries > 0:
             try:
+                self.setup_table()
                 self.connection = get_db_connection()
                 if self.connection.is_connected():
                     self.cursor = self.connection.cursor()
@@ -127,8 +139,10 @@ class Connection():
         try:
             with open(os.path.join(PARENT_DIR, "F9_39.sql"), 'r') as f:
                 sql_script = f.read()
-            self.cursor.execute(sql_script)
-            self.cursor.commit()
+            conn = get_server_connection()
+            cursor = conn.cursor()
+            cursor.execute(sql_script)
+            cursor.commit()
         except Exception as e:
             print(f"Setup Error: {e}")
         
