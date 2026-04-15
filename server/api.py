@@ -2,10 +2,8 @@ import os
 import sys
 import subprocess
 import time
+from unittest import result
 import mysql.connector
-import customtkinter as ctk
-from tkinter import messagebox
-import sqlite3
 
 # --- CONFIGURATION & PATHS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -79,7 +77,7 @@ def get_db_connection(db_name="RestaurantSales"):
     )
 
 def get_server_connection():
-    """Returns a connection to the database."""
+    """Returns a connection to the MySQL server without specifying a database."""
     return mysql.connector.connect(
         host="localhost",
         port=DB_PORT,
@@ -101,7 +99,7 @@ class Connection():
         retries = 5
         while retries > 0:
             try:
-                self.setup_table()
+                self.setup_database()
                 self.connection = get_db_connection()
                 if self.connection.is_connected():
                     self.cursor = self.connection.cursor()
@@ -135,22 +133,39 @@ class Connection():
             pass
 
 
-    def setup_table(self):
+    def setup_database(self):
+        conn = get_server_connection()
+        cursor = conn.cursor()
+
         try:
-            with open(os.path.join(PARENT_DIR, "FP_39.sql"), 'r') as f:
+            with open(os.path.join(PARENT_DIR, "FP_39.sql"), "r", encoding="utf-8") as f:
                 sql_script = f.read()
-            conn = get_server_connection()
-            cursor = conn.cursor()
-            cursor.execute(sql_script)
-            cursor.commit()
+                
+                # Execute the script
+                results = cursor.execute(sql_script, multi=True)
+                
+                # We MUST consume the generator fully to finish the execution
+                for result in results:
+                    print(f"Executed: {result.statement[:30]}... Rows: {result.rowcount}")
+
+            # CRITICAL: Commit the changes to the disk
+            conn.commit()
+            
+
+        except StopIteration as e:
+            # This exception is expected when the generator is exhausted
+            print("SQL script execution completed.")
+            
         except Exception as e:
             print(f"Setup Error: {e}")
-        
-        messagebox.showinfo("Success", "Database tables set up successfully!")
+            conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
 
     def add_full_time_employee(self, name, role, email, phone, salary):
         if not name.strip() or not role.strip():
-            messagebox.showwarning("Input Error", "Employee name and role are required")
+            print("Employee name and role are required")
             return
 
         try:
@@ -173,15 +188,15 @@ class Connection():
 
             conn.commit()
 
-            messagebox.showinfo("Success", f"Full-time employee added with eid = {eid}")
+            print(f"Full-time employee added with eid = {eid}")
             return eid
 
         except Exception as e:
-            messagebox.showerror("Database Error", str(e))
+            print("Database Error", str(e))
     
     def add_part_time_employee(self, name, role, email, phone, hours, pay):
         if not name.strip() or not role.strip():
-            messagebox.showwarning("Input Error", "Employee name and role are required")
+            print("Employee name and role are required")
             return
 
         try:
@@ -204,15 +219,15 @@ class Connection():
 
             conn.commit()
 
-            messagebox.showinfo("Success", f"Part-time employee added with eid = {eid}")
+            print(f"Part-time employee added with eid = {eid}")
             return eid
 
         except Exception as e:
-            messagebox.showerror("Database Error", str(e))
+            print("Database Error", str(e))
     
     def add_ingredient(self, name, cost, quantity):
         if not name.strip():
-            messagebox.showwarning("Input Error", "Ingredient name is required")
+            print("Ingredient name is required")
             return
 
         try:
@@ -235,15 +250,15 @@ class Connection():
 
             conn.commit()
 
-            messagebox.showinfo("Success", f"Ingredient added with iid = {iid}")
+            print(f"Ingredient added with iid = {iid}")
             return iid
 
         except Exception as e:
-            messagebox.showerror("Database Error", str(e))
+            print("Database Error", str(e))
 
     def add_appliance(self, name, cost, quantity):
         if not name.strip():
-            messagebox.showwarning("Input Error", "Appliance name is required")
+            print("Appliance name is required")
             return
 
         try:
@@ -266,15 +281,15 @@ class Connection():
 
             conn.commit()
 
-            messagebox.showinfo("Success", f"Appliance added with iid = {iid}")
+            print(f"Appliance added with iid = {iid}")
             return iid
 
         except Exception as e:
-            messagebox.showerror("Database Error", str(e))
+            print("Database Error", str(e))
     
     def add_menu(self, name, price):
         if not name.strip():
-            messagebox.showwarning("Input Error", "Menu name is required")
+            print("Menu name is required")
             return
 
         try:
@@ -289,11 +304,11 @@ class Connection():
 
             conn.commit()
 
-            messagebox.showinfo("Success", f"Menu item added with mid = {mid}")
+            print(f"Menu item added with mid = {mid}")
             return mid
 
         except Exception as e:
-            messagebox.showerror("Database Error", str(e))
+            print("Database Error", str(e))
 
     def add_order(self, price, o_date, tip=0):
         try:
@@ -309,18 +324,23 @@ class Connection():
             oid = cursor.lastrowid
 
 
-            messagebox.showinfo("Success", f"Order added with oid = {oid}")
+            print(f"Order added with oid = {oid}")
             return oid
 
         except Exception as e:
-            messagebox.showerror("Database Error", str(e))
+            print("Database Error", str(e))
 
     def list_employees(self):
-        conn = self.connection
-        cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM Employees")
-        return cursor.fetchall()
+        self.cursor.execute("SHOW TABLES")
+        tables = self.cursor.fetchall()
+        print(tables)
+
+        self.cursor.execute("SELECT * FROM Employees")
+        employees = self.cursor.fetchall()
+        print(employees) 
+        
+        return employees
 
     
 
@@ -329,3 +349,4 @@ class Connection():
 # everything that appears here will appear the same to frontend
 if __name__ == "__main__":
     server = Connection()
+    server.list_employees()
