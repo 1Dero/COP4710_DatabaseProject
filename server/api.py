@@ -331,17 +331,76 @@ class Connection():
         except Exception as e:
             print("Database Error", str(e))
 
-    def list_table(self,table_name):
+    def delete_by_id(self, table_name, record_id):
+        try:
+            pk_map = {
+                "Restaurant": "rid",
+                "Employees": "eid",
+                "PartTime": "eid",
+                "FullTime": "eid",
+                "Menu": "mid",
+                "Item": "iid",
+                "Ingredients": "iid",
+                "Appliances": "aid",
+                "Orders": "oid"
+            }
 
+            if table_name not in pk_map:
+                print("Invalid table name")
+                return
+
+            pk_column = pk_map[table_name]
+            
+            self.cursor.execute(f"""
+                DELETE FROM {table_name}
+                WHERE {pk_column} = {record_id}
+            """)
+            self.connection.commit()
+
+        except Exception as e:
+            print("Database Error:", str(e))
+
+    def list_table(self,table_name):
         self.cursor.execute(f'SELECT * FROM {table_name}')
         
         return self.cursor.fetchall()
-
     
+    def get_restaurant_name(self):
+        try:
+            self.cursor.execute("""
+                SELECT name 
+                FROM Restaurant 
+                WHERE rid = 1
+            """)
+            result = self.cursor.fetchone()
+            return result[0] if result else None
 
+        except Exception as e:
+            print("Database Error:", str(e))
+    
+    def set_restaurant_name(self, new_name: str):
+        if not new_name.strip():
+            print("Restaurant name cannot be empty")
+            return
+
+        try:
+            self.cursor.execute(f"""
+                UPDATE Restaurant
+                SET name = "{new_name.strip()}"
+                WHERE rid = 1
+            """)
+
+            self.connection.commit()
+
+        except Exception as e:
+            print("Database Error:", str(e))
+    
 
 # --- MAIN EXECUTION ---
 # everything that appears here will appear the same to frontend
 if __name__ == "__main__":
     server = Connection()
-    server.list_employees()
+    
+
+
+
