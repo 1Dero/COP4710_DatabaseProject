@@ -13,7 +13,7 @@ CREATE TABLE Employees(
     role VARCHAR(50),
     email VARCHAR(50),
     rid INT,
-    phone INT,
+    phone VARCHAR(50),
     FOREIGN KEY (rid) REFERENCES Restaurant(rid)
 );
 
@@ -179,12 +179,12 @@ VALUES (1, 'Knight Bites');
 
 INSERT INTO Employees (name, role, email, rid, phone)
 VALUES
-('Alice Chen', 'Manager', 'alice@knightbites.com', 1, 4071111001),
-('Bob Smith', 'Chef', 'bob@knightbites.com', 1, 4071111002),
-('Carol Davis', 'Waiter', 'carol@knightbites.com', 1, 4071111003),
-('David Lee', 'Cashier', 'david@knightbites.com', 1, 4071111004),
-('Emma Brown', 'Dishwasher', 'emma@knightbites.com', 1, 4071111005),
-('Frank Green', 'Waiter', 'frank@knightbites.com', 1, 4071111006);
+('Alice Chen', 'Manager', 'alice@knightbites.com', 1, "4071111001"),
+('Bob Smith', 'Chef', 'bob@knightbites.com', 1, "4071111002"),
+('Carol Davis', 'Waiter', 'carol@knightbites.com', 1, "4071111003"),
+('David Lee', 'Cashier', 'david@knightbites.com', 1, "4071111004"),
+('Emma Brown', 'Dishwasher', 'emma@knightbites.com', 1, "4071111005"),
+('Frank Green', 'Waiter', 'frank@knightbites.com', 1, "4071111006");
 
 -- Full-time employees
 INSERT INTO FullTime (eid, salary)
