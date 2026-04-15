@@ -142,11 +142,12 @@ class Connection():
                 sql_script = f.read()
                 
                 # Execute the script
-                results = cursor.execute(sql_script, multi=True)
+                statements = sql_script.split(';')
+                for statement in statements:
+                    if statement.strip():
+                        cursor.execute(statement)
                 
                 # We MUST consume the generator fully to finish the execution
-                for result in results:
-                    print(f"Executed: {result.statement[:30]}... Rows: {result.rowcount}")
 
             # CRITICAL: Commit the changes to the disk
             conn.commit()
@@ -330,17 +331,11 @@ class Connection():
         except Exception as e:
             print("Database Error", str(e))
 
-    def list_employees(self):
+    def list_table(self,table_name):
 
-        self.cursor.execute("SHOW TABLES")
-        tables = self.cursor.fetchall()
-        print(tables)
-
-        self.cursor.execute("SELECT * FROM Employees")
-        employees = self.cursor.fetchall()
-        print(employees) 
+        self.cursor.execute(f'SELECT * FROM {table_name}')
         
-        return employees
+        return self.cursor.fetchall()
 
     
 

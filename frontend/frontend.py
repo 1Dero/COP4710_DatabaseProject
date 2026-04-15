@@ -188,6 +188,87 @@ class MySQLDataTable(ctk.CTkFrame):
         query = self.search_entry.get().lower()
         filtered = [row for row in self.full_data if any(query in str(cell).lower() for cell in row)]
         self.update_view(filtered)
+class EntryFormPopup(ctk.CTkToplevel):
+    def __init__(self, master, table_name, columns, server, success_callback, is_edit=False, row_data=None):
+        super().__init__(master)
+        
+        self.is_edit = is_edit
+        self.table_name = table_name
+        self.columns = columns
+        self.server = server
+        self.success_callback = success_callback
+        self.row_data = row_data # Expects a dict: {"name": "John", "role": "Dev"}
+        self.entries = {}
+
+        self.title("Edit Record" if is_edit else "Add New Record")
+        self.geometry("400x550")
+        self.attributes("-topmost", True)
+        self.grab_set()
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        title_text = f"Editing ID: {self.row_data.get('id')}" if self.is_edit else "Add New Entry"
+        ctk.CTkLabel(self, text=title_text, font=("Arial", 18, "bold")).pack(pady=20)
+
+        # Generate fields for all columns except 'id'
+        for col in self.columns:
+            if col.lower() == 'id': continue
+            
+            frame = ctk.CTkFrame(self, fg_color="transparent")
+            frame.pack(fill="x", padx=30, pady=8)
+            
+            ctk.CTkLabel(frame, text=col.capitalize(), width=100, anchor="w").pack(side="left")
+            entry = ctk.CTkEntry(frame)
+            entry.pack(side="right", expand=True, fill="x")
+            
+            # If in Edit mode, pre-fill the entry with existing data
+            if self.is_edit and self.row_data and col in self.row_data:
+                entry.insert(0, str(self.row_data[col]))
+                
+            self.entries[col] = entry
+
+        # Action Button
+        btn_text = "Update Record" if self.is_edit else "Save to Database"
+        btn_color = "#1f538d" if self.is_edit else "#28a745"
+        
+        self.action_btn = ctk.CTkButton(self, text=btn_text, fg_color=btn_color, command=self.submit)
+        self.action_btn.pack(pady=30)
+
+    def submit(self):
+        # Gather data from entry fields
+        form_values = {col: entry.get() for col, entry in self.entries.items()}
+        
+        if any(v == "" for v in form_values.values()):
+            messagebox.showwarning("Warning", "Please fill in all fields.")
+            return
+
+        try:
+            conn = mysql.connector.connect(**self.db_config)
+            cursor = conn.cursor()
+
+            if self.is_edit:
+                # SQL UPDATE Logic
+                set_clause = ", ".join([f"{col} = %s" for col in form_values.keys()])
+                sql = f"UPDATE {self.table_name} SET {set_clause} WHERE id = %s"
+                values = list(form_values.values()) + [self.row_data['id']]
+            else:
+                # SQL INSERT Logic
+                cols_str = ", ".join(form_values.keys())
+                placeholders = ", ".join(["%s"] * len(form_values))
+                sql = f"INSERT INTO {self.table_name} ({cols_str}) VALUES ({placeholders})"
+                values = list(form_values.values())
+
+            cursor.execute(sql, values)
+            conn.commit()
+            conn.close()
+
+            messagebox.showinfo("Success", "Database updated successfully!")
+            self.success_callback() # Refresh parent table
+            self.destroy()
+
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", f"Error: {err}")
 
 
 class PortableDatabaseTabs(ctk.CTkTabview):
@@ -229,23 +310,24 @@ class MainApp(ctk.CTk):
     def __init__(self, server):
         super().__init__()
         self.geometry("400x200")
-        self.title("Editable Label Demo")
+        self.title("Restaurant Sales")
 
+        self.server = server
 
         # Initialize our custom widget
         self.editable_field = ClickableLabel(self)
         self.editable_field.pack(side="top", anchor="nw", padx=5, pady=5)
 
-        # 1. Execute the query
-        server.cursor.execute("SHOW TABLES")
 
-        # 2. Fetch all rows 
-        # Results look like: [('table1',), ('table2',)]
-        raw_tables = server.cursor.fetchall()
-
-        # 3. Flatten into a simple list of strings
+        self.server.cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'RestaurantSales' 
+            ORDER BY create_time ASC
+        """)
+        raw_tables = self.server.cursor.fetchall()
         self.categories = [table[0] for table in raw_tables]
-        
+
         # 2. Store Table References
         # This dict will map Tab Names -> MySQLDataTable objects
         self.table_widgets = {}
@@ -264,7 +346,15 @@ class MainApp(ctk.CTk):
             
             # Create the table widget inside the tab immediately
             # but leave it empty for now
-            table = MySQLDataTable(tab_object, columns=("ID", "Name", "Department", "Status"))
+            self.server.cursor.execute(f"""
+                SELECT COLUMN_NAME 
+                FROM information_schema.columns 
+                WHERE table_schema = "RestaurantSales"
+                AND table_name = "{name}"
+                ORDER BY ORDINAL_POSITION
+            """)
+
+            table = MySQLDataTable(tab_object, columns=self.server.cursor.fetchall())
             table.pack(expand=True, fill="both")
             
             # Save reference to the table so we can update it later
@@ -280,21 +370,13 @@ class MainApp(ctk.CTk):
 
         # Get the specific table widget for this tab
         target_table = self.table_widgets[selected_tab]
-
         # Simulation: Fetching data based on the tab name
         # In production, replace this with: 
         # data = db.execute(f"SELECT * FROM employees WHERE dept='{selected_tab}'")
-        db_results = self.get_data(selected_tab)
+        db_results = self.server.list_table(selected_tab)
 
         # Insert the data into the widget
         target_table.load_data(db_results)
 
-    def get_data(self, department):
-        """Generates dynamic data based on the tab name."""
-        return [
-            (department, "Alice", department, "Online"),
-            ("102", "Bob", department, "Away"),
-            ("103", "Charlie", department, "Busy"),
-        ]
 
 
