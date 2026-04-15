@@ -320,10 +320,7 @@ class Connection():
         cursor = conn.cursor()
 
         cursor.execute("SELECT * FROM Employees")
-        rows = cursor.fetchall()
-        
-        employees = "\n".join([r[0] for r in rows])
-        messagebox.showinfo("Employees", employees if employees else "No employees found.")
+        return cursor.fetchall()
 
     
 
