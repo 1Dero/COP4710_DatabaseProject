@@ -1,10 +1,9 @@
-
 DROP DATABASE IF EXISTS RestaurantSales;
 CREATE DATABASE RestaurantSales;
 USE RestaurantSales;
 
 CREATE TABLE Restaurant(
-	rid INT AUTO_INCREMENT PRIMARY KEY,
+	rid INT PRIMARY KEY NOT NULL DEFAULT 1 CHECK (rid = 1),
 	name VARCHAR(50)
 );
 
@@ -52,11 +51,13 @@ CREATE TABLE Item(
 CREATE TABLE Ingredients(
 	iid INT PRIMARY KEY,
     FOREIGN KEY (iid) REFERENCES Item(iid)
+        On DELETE CASCADE
 );
 
 CREATE TABLE Appliances(
 	aid INT PRIMARY KEY,
     FOREIGN KEY (aid) REFERENCES Item(iid)
+        On DELETE CASCADE
 );
 
 
