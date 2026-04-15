@@ -366,7 +366,7 @@ class MainApp(ctk.CTk):
     def on_tab_switched(self):
         """This runs every time the user clicks a tab."""
         selected_tab = self.tabview.get()
-        print(f"User switched to: {selected_tab}")
+        print(f"Table switched to: {selected_tab}")
 
         # Get the specific table widget for this tab
         target_table = self.table_widgets[selected_tab]
