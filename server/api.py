@@ -1,15 +1,19 @@
 import os
+import sys
 import subprocess
 import time
 import mysql.connector
 import customtkinter as ctk
 from tkinter import messagebox
+import sqlite3
 
 # --- CONFIGURATION & PATHS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MYSQL_PATH = os.path.join(BASE_DIR, "mysql", "bin", "mysqld.exe")
 DATA_DIR = os.path.join(BASE_DIR, "mysql_data")
 DB_PORT = 3306
+PARENT_DIR = os.path.dirname(BASE_DIR)
+sys.path.append(PARENT_DIR)
 
 
 def start_mysql_server():
@@ -93,125 +97,10 @@ class Connection():
 
     def setup_table(self):
         try:
-            conn = self.connection
-            cursor = self.cursor
-            cursor.execute("CREATE DATABASE IF NOT EXISTS RestaurantSales")
-            cursor.execute("USE RestaurantSales")
-            
-
-            #   =======================
-            #          Entities
-            #   =======================
-
-            # Employee Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Employees(
-                eid INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(50) NOT NULL,
-                role VARCHAR(50) NOT NULL,
-                email VARCHAR(50),
-                phone VARCHAR(20)
-            )
-            """)
-            
-            # Full Time Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS FullTime(
-                eid INT PRIMARY KEY,
-                salary DECIMAL(10,2) UNSIGNED NOT NULL,
-                FOREIGN KEY (eid) REFERENCES Employees(eid)
-                    ON DELETE CASCADE
-            )
-            """)
-
-            # Part Time Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS PartTime(
-                eid INT PRIMARY KEY,
-                hours INT NOT NULL,
-                pay DECIMAL(10,2) NOT NULL,
-                FOREIGN KEY (eid) REFERENCES Employees(eid)
-                    ON DELETE CASCADE
-            )
-            """)
-            
-            # Menu Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Menu(
-                mid INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(50) NOT NULL,
-                price DECIMAL(10,2) NOT NULL
-            )
-                            """)
-            
-            # Orders Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Orders(
-                oid INT AUTO_INCREMENT PRIMARY KEY,
-                price DECIMAL(10,2) NOT NULL,
-                tip DECIMAL(10,2) DEFAULT 0,
-                o_date DATE NOT NULL
-            )
-                           """)
-
-            # Item Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Item(
-                iid INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(50) NOT NULL,
-                cost DECIMAL(10,2) UNSIGNED NOT NULL,
-                quantity INT UNSIGNED NOT NULL
-            )
-                           """)
-            
-            # Ingredients Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Ingredients(
-                iid INT PRIMARY KEY,
-                FOREIGN KEY (iid) REFERENCES Item(iid)
-                    ON DELETE CASCADE
-            )
-                            """)
-            
-            # Appliances Table
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Appliances(
-                iid INT PRIMARY KEY,
-                FOREIGN KEY (iid) REFERENCES Item(iid)
-                    ON DELETE CASCADE
-            )
-                            """)
-            
-            #   =======================
-            #       Relationships
-            #   =======================
-
-
-            # OrderMenuItem
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS OrderMenuItem(
-                oid INT,
-                mid INT,
-                PRIMARY KEY (oid, mid),
-                FOREIGN KEY (oid) REFERENCES Orders(oid)
-                    ON DELETE CASCADE,
-                FOREIGN KEY (mid) REFERENCES Menu(mid)
-            )
-                            """)
-            
-            # MenuItemUses
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS MenuItemUses(
-                mid INT,
-                iid INT,
-                PRIMARY KEY (mid, iid),
-                FOREIGN KEY (mid) REFERENCES Menu(mid),
-                FOREIGN KEY (iid) REFERENCES Ingredients(iid)
-            )
-                            """)
-            
-            conn.commit()
-            
+            with open(os.path.join(PARENT_DIR, "F9_39.sql"), 'r') as f:
+                sql_script = f.read()
+            self.cursor.execute(sql_script)
+            self.cursor.commit()
         except Exception as e:
             print(f"Setup Error: {e}")
         
@@ -383,6 +272,8 @@ class Connection():
 
         except Exception as e:
             messagebox.showerror("Database Error", str(e))
+
+    
 
     
 
