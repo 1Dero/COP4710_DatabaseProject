@@ -9,11 +9,11 @@
 #define _mysql_version_h
 
 #define PROTOCOL_VERSION            10
-#define MYSQL_SERVER_VERSION       "9.6.0"
-#define MYSQL_BASE_VERSION         "mysqld-9.6"
-#define MYSQL_VERSION_ID            90600
-#define MYSQL_VERSION_MATURITY      "INNOVATION"
-#define MYSQL_VERSION_MATURITY_IS_LTS 0
+#define MYSQL_SERVER_VERSION       "8.0.45"
+#define MYSQL_BASE_VERSION         "mysqld-8.0"
+#define MYSQL_SERVER_SUFFIX_DEF    ""
+#define MYSQL_VERSION_ID            80045
+#define MYSQL_VERSION_STABILITY     "LTS"
 #define MYSQL_PORT                  3306
 #define MYSQL_ADMIN_PORT            33062
 #define MYSQL_PORT_DEFAULT          0
@@ -22,8 +22,8 @@
 #define MYSQL_PERSIST_CONFIG_NAME  "mysqld-auto"
 #define MYSQL_COMPILATION_COMMENT  "MySQL Community - GPL"
 #define MYSQL_COMPILATION_COMMENT_SERVER  "MySQL Community Server - GPL"
-#define LIBMYSQL_VERSION           "9.6.0"
-#define LIBMYSQL_VERSION_ID         90600
+#define LIBMYSQL_VERSION           "8.0.45"
+#define LIBMYSQL_VERSION_ID         80045
 
 #ifndef LICENSE
 #define LICENSE                     GPL

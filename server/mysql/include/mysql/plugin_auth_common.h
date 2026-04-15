@@ -43,20 +43,6 @@
 */
 
 /**
-  Authentication failed, account locked error.
-  The account is locked.
-  These errors are reported in table performance_schema.host_cache,
-  column COUNT_ACCOUNT_LOCKED_ERRORS.
-*/
-#define CR_AUTH_ACCOUNT_LOCKED_ERROR 5
-/**
-  Authentication failed, temporary account locked error.
-  The account is temporarily locked.
-  These errors are reported in table performance_schema.host_cache,
-  column COUNT_TEMPORARY_ACCOUNT_LOCKED_ERRORS.
-*/
-#define CR_AUTH_TEMPORARY_ACCOUNT_LOCKED_ERROR 4
-/**
   Authentication failed, plugin internal error.
   An error occurred in the authentication plugin itself.
   These errors are reported in table performance_schema.host_cache,
@@ -141,7 +127,6 @@ struct MYSQL_PLUGIN_VIO_INFO {
     MYSQL_VIO_MEMORY
   } protocol;
   int socket; /**< it's set, if the protocol is SOCKET or TCP */
-  bool is_tls_established;
 #if defined(_WIN32) && !defined(MYSQL_ABI_CHECK)
   HANDLE handle; /**< it's set, if the protocol is PIPE or MEMORY */
 #endif
