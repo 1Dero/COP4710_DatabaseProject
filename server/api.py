@@ -73,12 +73,8 @@ def get_db_connection(db_name='RestaurantSales'):
         password=""
     )
 
-class CRUDApp(ctk.CTk): # main api class
+class Connection(): 
     def __init__(self): # constructor
-        super().__init__()
-        self.title("Database Manager")
-        self.geometry("500x400")
-
         try:
             self.connection = get_db_connection()
 
@@ -394,13 +390,4 @@ class CRUDApp(ctk.CTk): # main api class
 # --- MAIN EXECUTION ---
 # everything that appears here will appear the same to frontend
 if __name__ == "__main__":
-    if start_mysql_server():
-        try:
-            ctk.set_appearance_mode("dark")
-            app = CRUDApp()
-            app.mainloop()
-        finally:
-            # This runs when the mainloop stops (window is closed)
-            end_mysql_server()
-    else:
-        print("Failed to launch MySQL. Check your 'mysql' folder.")
+    pass
