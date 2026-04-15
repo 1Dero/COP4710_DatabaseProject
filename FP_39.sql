@@ -166,7 +166,7 @@ LEFT JOIN (
 ) cap ON r.rid = cap.rid;
 
 -- 1. Insert Restaurants
-INSERT INTO Restaurant VALUES (1, 'The Rusty Spoon'), (2, 'Pizza Paradiso');
+INSERT INTO Restaurant VALUES (1, 'The Rusty Spoon');
 
 -- 2. Insert Employees
 INSERT INTO Employees VALUES (101, 'Alice Smith', 'Chef', 'alice@test.com', 1, 5551234);
