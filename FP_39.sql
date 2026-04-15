@@ -119,7 +119,50 @@ SELECT
 FROM Employees e
 JOIN PartTime p ON e.eid = p.eid;
 
+CREATE VIEW RestaurantSummary AS
+SELECT
+    r.name AS restaurant,
+    COALESCE(rev.revenue, 0) AS revenue,
+    COALESCE(emp.employee_cost, 0) + COALESCE(ing.ingredient_cost, 0) AS cost,
+    COALESCE(cap.capital_values, 0) AS capital_values
+FROM Restaurant r
 
+LEFT JOIN (
+    SELECT
+        o.rid,
+        SUM(o.price + o.tip) AS revenue
+    FROM Orders o
+    GROUP BY o.rid
+) rev ON r.rid = rev.rid
+
+LEFT JOIN (
+    SELECT
+        e.rid,
+        COALESCE(SUM(f.salary), 0) + COALESCE(SUM(p.hours * p.pay), 0) AS employee_cost
+    FROM Employees e
+    LEFT JOIN FullTime f ON e.eid = f.eid
+    LEFT JOIN PartTime p ON e.eid = p.eid
+    GROUP BY e.rid
+) emp ON r.rid = emp.rid
+
+LEFT JOIN (
+    SELECT
+        rs.rid,
+        SUM(i.cost * i.quantity) AS ingredient_cost
+    FROM RestaurantStock rs
+    JOIN Ingredients g ON rs.iid = g.iid
+    JOIN Item i ON g.iid = i.iid
+    GROUP BY rs.rid
+) ing ON r.rid = ing.rid
+
+LEFT JOIN (
+    SELECT
+        rs.rid,
+        SUM(i.cost * i.quantity) AS capital_values
+    FROM RestaurantStock rs
+    JOIN Item i ON rs.iid = i.iid
+    GROUP BY rs.rid
+) cap ON r.rid = cap.rid;
 
 -- 1. Insert Restaurants
 INSERT INTO Restaurant VALUES (1, 'The Rusty Spoon'), (2, 'Pizza Paradiso');
