@@ -137,7 +137,7 @@ class Connection():
 
     def setup_table(self):
         try:
-            with open(os.path.join(PARENT_DIR, "F9_39.sql"), 'r') as f:
+            with open(os.path.join(PARENT_DIR, "FP_39.sql"), 'r') as f:
                 sql_script = f.read()
             conn = get_server_connection()
             cursor = conn.cursor()
