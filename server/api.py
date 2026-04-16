@@ -2,8 +2,10 @@ import os
 import sys
 import subprocess
 import time
+import re
 from unittest import result
 import mysql.connector
+
 
 # --- CONFIGURATION & PATHS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -13,6 +15,13 @@ DB_PORT = 3306
 PARENT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(PARENT_DIR)
 
+
+# helper functions
+def is_integer(s):
+    return bool(re.match(r"^-?\d+$", s))
+
+def is_float(s):
+    return bool(re.match(r"^-?\d*\.\d+$", s))
 
 def start_mysql_server():
     """Initializes and starts the local MySQL server."""
@@ -363,9 +372,32 @@ class Connection():
         except Exception as e:
             print("Database Error:", str(e))
 
+
+
+    def add(self, table_name:str, values:tuple, col_names:list): # tuple of strings , note sql converts ints to strings automatically
+        formatted_items = [
+            item if (is_integer(item) or is_float(item)) else f'"{item}"'
+            for item in values
+        ]
+        formatted_names = [item[0] for item in col_names]
+        print(f"({", ".join(formatted_items)})")
+        print(f"({', '.join(formatted_names)})")
+        print()
+        try:
+            self.cursor.execute(f"""
+                            INSERT INTO {table_name} ({', '.join(formatted_names)})
+                            VALUES ({", ".join(formatted_items)})
+                    """)
+
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print("Database Add Error:", str(e))
+            return False
+        
+
     def list_table(self,table_name):
         self.cursor.execute(f'SELECT * FROM {table_name}')
-        
         return self.cursor.fetchall()
     
     def get_restaurant_name(self):

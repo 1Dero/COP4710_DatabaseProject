@@ -2,97 +2,86 @@ DROP DATABASE IF EXISTS RestaurantSales;
 CREATE DATABASE RestaurantSales;
 USE RestaurantSales;
 
+-- The singleton table remains, but acts only to store the restaurant's global configuration/name.
 CREATE TABLE Restaurant(
-	rid INT PRIMARY KEY NOT NULL DEFAULT 1 CHECK (rid = 1),
-	name VARCHAR(50)
+    rid INT PRIMARY KEY NOT NULL DEFAULT 1 CHECK (rid = 1),
+    name VARCHAR(50)
 );
 
+-- Removed 'rid' and its foreign key
 CREATE TABLE Employees(
-	eid INT AUTO_INCREMENT PRIMARY KEY,
+    eid INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50),
     role VARCHAR(50),
     email VARCHAR(50),
-    rid INT,
-    phone VARCHAR(50),
-    FOREIGN KEY (rid) REFERENCES Restaurant(rid)
+    phone VARCHAR(50)
 );
 
 CREATE TABLE PartTime(
-	eid INT PRIMARY KEY,
-	hours INT,
+    eid INT PRIMARY KEY,
+    hours INT,
     pay FLOAT,
-	FOREIGN KEY (eid) REFERENCES Employees(eid)
-		ON DELETE CASCADE
+    FOREIGN KEY (eid) REFERENCES Employees(eid)
+        ON DELETE CASCADE
 );
 
 CREATE TABLE FullTime(
-	eid INT PRIMARY KEY,
-	salary INT UNSIGNED,
-	FOREIGN KEY (eid) REFERENCES Employees(eid)
-		ON DELETE CASCADE
+    eid INT PRIMARY KEY,
+    salary INT UNSIGNED,
+    FOREIGN KEY (eid) REFERENCES Employees(eid)
+        ON DELETE CASCADE
 );
 
-
+-- Removed 'rid' and its foreign key
 CREATE TABLE Menu(
-	mid INT AUTO_INCREMENT PRIMARY KEY,
+    mid INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50),
-    price FLOAT,
-    rid INT,
-    FOREIGN KEY (rid) REFERENCES Restaurant(rid)
+    price FLOAT
 );
 
 CREATE TABLE Item(
-	iid INT AUTO_INCREMENT PRIMARY KEY,
+    iid INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50),
     cost FLOAT UNSIGNED,
     quantity INT UNSIGNED
 );
 
 CREATE TABLE Ingredients(
-	iid INT PRIMARY KEY,
+    iid INT PRIMARY KEY,
     FOREIGN KEY (iid) REFERENCES Item(iid)
-        On DELETE CASCADE
+        ON DELETE CASCADE
 );
 
 CREATE TABLE Appliances(
-	aid INT PRIMARY KEY,
+    aid INT PRIMARY KEY,
     FOREIGN KEY (aid) REFERENCES Item(iid)
-        On DELETE CASCADE
+        ON DELETE CASCADE
 );
 
-
+-- Removed 'rid' and its foreign key
 CREATE TABLE Orders(
-	oid INT AUTO_INCREMENT PRIMARY KEY,
+    oid INT AUTO_INCREMENT PRIMARY KEY,
     price FLOAT,
     tip FLOAT DEFAULT 0,
-    o_date DATE,
-    rid INT,
-    FOREIGN KEY (rid) REFERENCES Restaurant(rid)
+    o_date DATE
 );
 
-
 CREATE TABLE OrderMenuItem(
-	oid INT,
+    oid INT,
     mid INT,
     FOREIGN KEY (mid) REFERENCES Menu(mid),
     FOREIGN KEY (oid) REFERENCES Orders(oid)
-		ON DELETE CASCADE
+        ON DELETE CASCADE
 );
 
 CREATE TABLE MenuItemUses(
-	mid INT,
+    mid INT,
     iid INT,
     FOREIGN KEY (mid) REFERENCES Menu(mid),
     FOREIGN KEY (iid) REFERENCES Ingredients(iid)
 );
 
-CREATE TABLE RestaurantStock(
-	rid INT,
-    iid INT,
-    FOREIGN KEY (rid) REFERENCES Restaurant(rid),
-    FOREIGN KEY (iid) REFERENCES Item(iid)
-);
-
+-- View remains unchanged as it did not rely on 'rid'
 CREATE VIEW EmployeeView AS
 -- Part 1: Select Full-Time Employees
 SELECT 
@@ -120,249 +109,181 @@ SELECT
 FROM Employees e
 JOIN PartTime p ON e.eid = p.eid;
 
+-- View completely refactored to remove 'rid' groupings and the undefined RestaurantStock table
 CREATE VIEW RestaurantSummary AS
 SELECT
     r.name AS restaurant,
-    COALESCE(rev.revenue, 0) AS revenue,
-    COALESCE(emp.employee_cost, 0) + COALESCE(ing.ingredient_cost, 0) AS cost,
-    COALESCE(cap.capital_values, 0) AS capital_values
+    ROUND(COALESCE(rev.revenue, 0), 2) AS revenue,
+    ROUND(COALESCE(emp.employee_cost, 0) + COALESCE(ing.ingredient_cost, 0), 2) AS cost,
+    ROUND(COALESCE(cap.capital_values, 0), 2) AS capital_values
 FROM Restaurant r
 
-LEFT JOIN (
+-- Global revenue aggregation
+CROSS JOIN (
     SELECT
-        o.rid,
-        SUM(o.price + o.tip) AS revenue
-    FROM Orders o
-    GROUP BY o.rid
-) rev ON r.rid = rev.rid
+        SUM(price + tip) AS revenue
+    FROM Orders
+) rev
 
-LEFT JOIN (
+-- Global employee cost aggregation
+CROSS JOIN (
     SELECT
-        e.rid,
         COALESCE(SUM(f.salary), 0) + COALESCE(SUM(p.hours * p.pay), 0) AS employee_cost
     FROM Employees e
     LEFT JOIN FullTime f ON e.eid = f.eid
     LEFT JOIN PartTime p ON e.eid = p.eid
-    GROUP BY e.rid
-) emp ON r.rid = emp.rid
+) emp
 
-LEFT JOIN (
+-- Global ingredient cost aggregation
+CROSS JOIN (
     SELECT
-        rs.rid,
         SUM(i.cost * i.quantity) AS ingredient_cost
-    FROM RestaurantStock rs
-    JOIN Ingredients g ON rs.iid = g.iid
+    FROM Ingredients g
     JOIN Item i ON g.iid = i.iid
-    GROUP BY rs.rid
-) ing ON r.rid = ing.rid
+) ing
 
-LEFT JOIN (
+-- Global capital value aggregation
+CROSS JOIN (
     SELECT
-        rs.rid,
-        SUM(i.cost * i.quantity) AS capital_values
-    FROM RestaurantStock rs
-    JOIN Item i ON rs.iid = i.iid
-    GROUP BY rs.rid
-) cap ON r.rid = cap.rid;
+        SUM(cost * quantity) AS capital_values
+    FROM Item
+) cap;
+-- =========================================================
+-- 1. Restaurant Configuration
+-- =========================================================
+INSERT INTO Restaurant (rid, name) 
+VALUES (1, '63 South');
 
--- =========================================
--- Example Data for RestaurantSales
--- =========================================
+-- =========================================================
+-- 2. Employees (Base Table)
+-- =========================================================
+INSERT INTO Employees (eid, name, role, email, phone) VALUES 
+(1, 'Gordon Ramsay', 'Head Chef', 'gramsay@goldenfork.com', '555-0101'),
+(2, 'Alice Waters', 'General Manager', 'awaters@goldenfork.com', '555-0102'),
+(3, 'David Chang', 'Sous Chef', 'dchang@goldenfork.com', '555-0103'),
+(4, 'Samin Nosrat', 'Line Cook', 'snosrat@goldenfork.com', '555-0104'),
+(5, 'John Doe', 'Server', 'jdoe@goldenfork.com', '555-0201'),
+(6, 'Jane Smith', 'Server', 'jsmith@goldenfork.com', '555-0202'),
+(7, 'Mike Johnson', 'Bartender', 'mjohnson@goldenfork.com', '555-0203'),
+(8, 'Emily Davis', 'Host', 'edavis@goldenfork.com', '555-0204'),
+(9, 'Chris Wilson', 'Dishwasher', 'cwilson@goldenfork.com', '555-0205'),
+(10, 'Sarah Brown', 'Busser', 'sbrown@goldenfork.com', '555-0206');
 
--- Restaurant
-INSERT INTO Restaurant (rid, name)
-VALUES (1, 'Knight Bites');
+-- =========================================================
+-- 3. Full-Time & Part-Time Employees
+-- =========================================================
+-- Full-time employees (Salaried)
+INSERT INTO FullTime (eid, salary) VALUES 
+(1, 95000), -- Gordon
+(2, 80000), -- Alice
+(3, 65000), -- David
+(4, 55000); -- Samin
 
--- =========================================
--- Employees
--- =========================================
+-- Part-time employees (Hourly)
+INSERT INTO PartTime (eid, hours, pay) VALUES 
+(5, 30, 15.50), -- John
+(6, 25, 15.50), -- Jane
+(7, 35, 18.00), -- Mike
+(8, 20, 14.00), -- Emily
+(9, 40, 16.00), -- Chris
+(10, 20, 13.50); -- Sarah
 
-INSERT INTO Employees (name, role, email, rid, phone)
-VALUES
-('Alice Chen', 'Manager', 'alice@knightbites.com', 1, "4071111001"),
-('Bob Smith', 'Chef', 'bob@knightbites.com', 1, "4071111002"),
-('Carol Davis', 'Waiter', 'carol@knightbites.com', 1, "4071111003"),
-('David Lee', 'Cashier', 'david@knightbites.com', 1, "4071111004"),
-('Emma Brown', 'Dishwasher', 'emma@knightbites.com', 1, "4071111005"),
-('Frank Green', 'Waiter', 'frank@knightbites.com', 1, "4071111006");
+-- =========================================================
+-- 4. Inventory Items (Appliances & Ingredients)
+-- =========================================================
+INSERT INTO Item (iid, name, cost, quantity) VALUES 
+-- Appliances (IDs 1-4)
+(1, 'Industrial Oven', 5000.00, 2),
+(2, 'Stand Mixer', 800.00, 3),
+(3, 'Walk-in Fridge', 8500.00, 1),
+(4, 'Espresso Machine', 3200.00, 1),
 
--- Full-time employees
-INSERT INTO FullTime (eid, salary)
-VALUES
-(1, 60000),
-(2, 50000);
+-- Ingredients (IDs 5-15)
+(5, 'Wagyu Beef Patty', 8.50, 150),
+(6, 'Brioche Bun', 0.80, 200),
+(7, 'Cheddar Cheese', 0.50, 300),
+(8, 'Romaine Lettuce', 1.20, 50),
+(9, 'Truffle Oil', 25.00, 10),
+(10, 'Pasta (Fettuccine)', 1.50, 100),
+(11, 'Heavy Cream', 3.00, 40),
+(12, 'Parmesan Cheese', 5.00, 30),
+(13, 'Chicken Breast', 3.50, 120),
+(14, 'Potatoes', 0.40, 500),
+(15, 'Craft Beer Keg', 120.00, 5);
 
--- Part-time employees
-INSERT INTO PartTime (eid, hours, pay)
-VALUES
-(3, 25, 15.50),
-(4, 20, 14.00),
-(5, 18, 13.50),
-(6, 22, 15.00);
+-- =========================================================
+-- 5. Sub-categorizing Items
+-- =========================================================
+INSERT INTO Appliances (aid) VALUES (1), (2), (3), (4);
 
--- =========================================
--- Menu
--- =========================================
+INSERT INTO Ingredients (iid) VALUES 
+(5), (6), (7), (8), (9), (10), (11), (12), (13), (14), (15);
 
-INSERT INTO Menu (name, price, rid)
-VALUES
-('Classic Burger', 10.99, 1),
-('Cheese Pizza', 14.50, 1),
-('Chicken Wrap', 9.75, 1),
-('Caesar Salad', 8.25, 1),
-('French Fries', 3.99, 1),
-('Milkshake', 4.50, 1);
+-- =========================================================
+-- 6. Menu Items
+-- =========================================================
+INSERT INTO Menu (mid, name, price) VALUES 
+(1, 'The Golden Burger', 22.00),
+(2, 'Truffle Fries', 12.00),
+(3, 'Chicken Alfredo', 24.00),
+(4, 'Caesar Salad', 14.00),
+(5, 'Craft Beer Pint', 8.00);
 
--- =========================================
--- Item
--- cost = purchase cost per unit
--- quantity = how many units currently in stock
--- =========================================
+-- =========================================================
+-- 7. Menu Item Ingredients Mapping
+-- =========================================================
+INSERT INTO MenuItemUses (mid, iid) VALUES 
+(1, 5),  -- Burger uses Wagyu
+(1, 6),  -- Burger uses Bun
+(1, 7),  -- Burger uses Cheddar
+(1, 8),  -- Burger uses Lettuce
+(2, 14), -- Fries use Potatoes
+(2, 9),  -- Fries use Truffle Oil
+(3, 10), -- Alfredo uses Pasta
+(3, 11), -- Alfredo uses Cream
+(3, 12), -- Alfredo uses Parmesan
+(3, 13), -- Alfredo uses Chicken
+(4, 8),  -- Salad uses Lettuce
+(4, 12), -- Salad uses Parmesan
+(5, 15); -- Pint uses Beer Keg
 
-INSERT INTO Item (name, cost, quantity)
-VALUES
-('Burger Bun', 0.50, 100),          -- iid = 1
-('Beef Patty', 2.00, 80),           -- iid = 2
-('Cheese Slice', 0.30, 120),        -- iid = 3
-('Pizza Dough', 1.50, 40),          -- iid = 4
-('Tomato Sauce', 0.80, 50),         -- iid = 5
-('Chicken Breast', 2.50, 60),       -- iid = 6
-('Tortilla', 0.40, 70),             -- iid = 7
-('Romaine Lettuce', 1.20, 30),      -- iid = 8
-('Potato', 0.25, 200),              -- iid = 9
-('Milk', 1.00, 40),                 -- iid = 10
-('Ice Cream Mix', 2.20, 25),        -- iid = 11
-('Blender', 75.00, 2),              -- iid = 12
-('Oven', 900.00, 1),                -- iid = 13
-('Deep Fryer', 250.00, 1),          -- iid = 14
-('Grill', 600.00, 1);               -- iid = 15
+-- =========================================================
+-- 8. Orders
+-- =========================================================
+-- Prices are calculated sums of the menu items for realism
+INSERT INTO Orders (oid, price, tip, o_date) VALUES 
+(1, 46.00, 9.20, '2023-10-01'), -- Burger, Alfredo
+(2, 34.00, 6.00, '2023-10-01'), -- Burger, Fries
+(3, 16.00, 3.00, '2023-10-01'), -- Pint x2
+(4, 38.00, 8.00, '2023-10-02'), -- Alfredo, Salad
+(5, 66.00, 15.00, '2023-10-02'), -- Burger x2, Fries x1, Beer x1
+(6, 14.00, 2.50, '2023-10-02'), -- Salad
+(7, 88.00, 20.00, '2023-10-03'), -- Alfredo x2, Salad x1, Beer x2
+(8, 22.00, 4.00, '2023-10-03'), -- Burger
+(9, 44.00, 10.00, '2023-10-04'), -- Burger x2
+(10, 20.00, 5.00, '2023-10-04'); -- Fries, Beer
 
--- =========================================
--- Ingredients
--- These are Item subtypes
--- =========================================
-
-INSERT INTO Ingredients (iid)
-VALUES
-(1), (2), (3), (4), (5),
-(6), (7), (8), (9), (10), (11);
-
--- =========================================
--- Appliances
--- These are Item subtypes
--- =========================================
-
-INSERT INTO Appliances (aid)
-VALUES
-(12), (13), (14), (15);
-
--- =========================================
--- RestaurantStock
--- What items belong to the restaurant
--- =========================================
-
-INSERT INTO RestaurantStock (rid, iid)
-VALUES
-(1, 1), (1, 2), (1, 3), (1, 4), (1, 5),
-(1, 6), (1, 7), (1, 8), (1, 9), (1, 10),
-(1, 11), (1, 12), (1, 13), (1, 14), (1, 15);
-
--- =========================================
--- MenuItemUses
--- Which ingredients each menu item uses
--- =========================================
-
--- Classic Burger (mid = 1)
-INSERT INTO MenuItemUses (mid, iid)
-VALUES
-(1, 1),  -- bun
-(1, 2),  -- beef patty
-(1, 3);  -- cheese slice
-
--- Cheese Pizza (mid = 2)
-INSERT INTO MenuItemUses (mid, iid)
-VALUES
-(2, 4),  -- pizza dough
-(2, 5),  -- tomato sauce
-(2, 3);  -- cheese slice
-
--- Chicken Wrap (mid = 3)
-INSERT INTO MenuItemUses (mid, iid)
-VALUES
-(3, 6),  -- chicken breast
-(3, 7),  -- tortilla
-(3, 8);  -- lettuce
-
--- Caesar Salad (mid = 4)
-INSERT INTO MenuItemUses (mid, iid)
-VALUES
-(4, 8),  -- lettuce
-(4, 3);  -- cheese slice
-
--- French Fries (mid = 5)
-INSERT INTO MenuItemUses (mid, iid)
-VALUES
-(5, 9);  -- potato
-
--- Milkshake (mid = 6)
-INSERT INTO MenuItemUses (mid, iid)
-VALUES
-(6, 10), -- milk
-(6, 11); -- ice cream mix
-
--- =========================================
--- Orders
--- =========================================
-
-INSERT INTO Orders (price, tip, o_date, rid)
-VALUES
-(10.99, 2.00, '2026-04-10', 1),  -- oid = 1
-(18.49, 3.50, '2026-04-10', 1),  -- oid = 2
-(14.25, 0.00, '2026-04-11', 1),  -- oid = 3
-(28.24, 5.00, '2026-04-11', 1),  -- oid = 4
-(8.25, 1.25, '2026-04-12', 1),   -- oid = 5
-(19.49, 4.00, '2026-04-12', 1);  -- oid = 6
-
--- =========================================
--- OrderMenuItem
--- Which menu items were included in each order
--- =========================================
-
--- Order 1: Classic Burger
-INSERT INTO OrderMenuItem (oid, mid)
-VALUES
-(1, 1);
-
--- Order 2: Cheese Pizza + Milkshake
-INSERT INTO OrderMenuItem (oid, mid)
-VALUES
-(2, 2),
-(2, 6);
-
--- Order 3: Chicken Wrap + French Fries + Milkshake
-INSERT INTO OrderMenuItem (oid, mid)
-VALUES
-(3, 3),
-(3, 5),
-(3, 6);
-
--- Order 4: 2 Burgers + 1 Caesar Salad + 1 Fries
-INSERT INTO OrderMenuItem (oid, mid)
-VALUES
-(4, 1),
-(4, 1),
-(4, 4),
-(4, 5);
-
--- Order 5: Caesar Salad
-INSERT INTO OrderMenuItem (oid, mid)
-VALUES
-(5, 4);
-
--- Order 6: Cheese Pizza + French Fries + Milkshake
-INSERT INTO OrderMenuItem (oid, mid)
-VALUES
-(6, 2),
-(6, 5),
-(6, 6);
-
+-- =========================================================
+-- 9. Order Menu Items (Mapping what was ordered)
+-- =========================================================
+INSERT INTO OrderMenuItem (oid, mid) VALUES 
+-- Order 1: Burger, Alfredo
+(1, 1), (1, 3),
+-- Order 2: Burger, Fries
+(2, 1), (2, 2),
+-- Order 3: 2x Beer
+(3, 5), (3, 5),
+-- Order 4: Alfredo, Salad
+(4, 3), (4, 4),
+-- Order 5: 2x Burger, Fries, Beer
+(5, 1), (5, 1), (5, 2), (5, 5),
+-- Order 6: Salad
+(6, 4),
+-- Order 7: 2x Alfredo, Salad, 2x Beer
+(7, 3), (7, 3), (7, 4), (7, 5), (7, 5),
+-- Order 8: Burger
+(8, 1),
+-- Order 9: 2x Burger
+(9, 1), (9, 1),
+-- Order 10: Fries, Beer
+(10, 2), (10, 5);

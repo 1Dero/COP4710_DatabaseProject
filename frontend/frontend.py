@@ -15,71 +15,82 @@ from server.api import Connection, get_db_connection
 
 
 # GLOBAL VARS
-app = None # app is a global variable
+VIEWS = ('EmployeeView','RestaurantSummary') # views, no add button
+RELATIONSHIPS = ('OrderMenuItem','RestaurantStock','MenuItemUses')
 
+import customtkinter as ctk
 
-class foo:
-    def get_restaurant_name():
-        return 'resty'
-    def set_restaurant_name(name):
-        print('restaurant name set')
-        return
+# Set UCF color scheme
+ctk.set_appearance_mode("dark")  # Dark mode for black background
+ctk.set_default_color_theme("dark-blue")  # Base theme, will override colors
 
-
-# click on label and input box pops up
 class ClickableLabel(ctk.CTkFrame):
-    def __init__(self, master, placeholder="Blank", **kwargs):
+    def __init__(self, master, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         self.master = master 
         self.placeholder = master.server.get_restaurant_name()
         
-        # 1. The Label (Visible by default)
-        self.label = ctk.CTkLabel(self, text=self.placeholder, cursor="hand2")
-        self.label.pack(padx=5, pady=5)
+        # Define the header style
+        # ("Font Name", Size, "weight")
+        self.header_font = ("Helvetica", 32, "bold")
         
-        # Bind the click event to the label
+        # 1. The Label (Styled as a Header)
+        self.label = ctk.CTkLabel(
+            self, 
+            text=self.placeholder, 
+            font=self.header_font,
+            text_color="#FFC904",  # UCF Gold
+            cursor="hand2"
+        )
+        self.label.pack(padx=10, pady=10)
+        
+        # Bind the click event
         self.label.bind("<Button-1>", lambda e: self.show_entry())
 
-        # 2. The Entry (Hidden by default)
-        self.entry = ctk.CTkEntry(self)
-        # Bind the Enter key to the submission logic
+        # 2. The Entry (Styled to match the header size)
+        self.entry = ctk.CTkEntry(
+            self, 
+            font=self.header_font,
+            justify="center", # Centers text while typing
+            height=50         # Taller box for larger font
+        )
         self.entry.bind("<Return>", lambda e: self.handle_submit())
+        # Also bind FocusOut so it reverts if the user clicks away
+        self.entry.bind("<FocusOut>", lambda e: self.revert())
 
     def show_entry(self):
-        """Hide label and show the entry box"""
         self.label.pack_forget()
-        self.entry.pack(padx=5, pady=5)
-        self.entry.focus()
-        # Pre-fill entry with current label text if it's not the placeholder
+        self.entry.pack(padx=10, pady=10)
+        
         current_text = self.label.cget("text")
-        if current_text != self.placeholder:
-            self.entry.insert(0, current_text)
+        self.entry.delete(0, 'end')
+        self.entry.insert(0, current_text)
+        self.entry.focus()
 
-    def handle_submit(self): # gets the entry 
-        """Logic to run when user presses Enter"""
+    def handle_submit(self):
         input_text = self.entry.get().strip()
         
         if input_text != "":
-            # Run your custom function here
-
+            # Update the Backend (SQL/Server)
             self.master.server.set_restaurant_name(input_text)
             
-            # Update label and swap back
+            # Update UI
             self.label.configure(text=input_text)
-            self.entry.delete(0, 'end')
-            self.entry.pack_forget()
-            self.label.pack(padx=5, pady=5)
+            self.revert()
         else:
-            # If empty, maybe just revert or show placeholder
-            print("Input was empty - ignoring.")
-            self.entry.pack_forget()
-            self.label.pack(padx=5, pady=5)
+            self.revert()
+
+    def revert(self):
+        """Helper to swap back to label mode"""
+        self.entry.pack_forget()
+        self.label.pack(padx=10, pady=10)
 
 # --- Popup Window Class ---
 class InputPopup(ctk.CTkToplevel):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.columns = parent.columns
+        self.parent = parent
+        self.columns = parent.columns[(1 if not self.parent.is_relationship else 0):] # skip the id if parent is a relationship, 0 otherwise
         self.title("Add New Entry")
         self.geometry("300x250")
         
@@ -99,23 +110,32 @@ class InputPopup(ctk.CTkToplevel):
         self.submit_btn.pack(pady=20)
 
     def submit(self):
-        name = self.name_entry.get()
-        email = self.email_entry.get()
+        entires = tuple([value.get() for value in  self.entires.values()])
+        for entry in entires: # check if all entries are present
+            if not entry:
+                messagebox.showwarning("Warning", "All fields are required.")
+                return
 
-        if name and email:
-            if True:
-                messagebox.showinfo("Success", "Data added to MySQL!")
-                self.destroy() # Close popup
-            else:
-                messagebox.showerror("Error", "Failed to connect to database.")
+
+        if self.parent.server.add(self.parent.name,entires, self.columns):
+            self.parent.server.cursor.execute(f"""SELECT * FROM {self.parent.name} 
+                                              ORDER BY 1 
+                                              DESC LIMIT 1
+                                              """)
+            last_row = self.parent.server.cursor.fetchone()
+
+            self.parent.tree.insert("", "end", values=last_row)
+            messagebox.showinfo("Success", "Data added to MySQL!")
+            self.destroy() # Close popup
         else:
-            messagebox.showwarning("Warning", "All fields are required.")
-
+            messagebox.showerror("Error", "Failed to connect to database.")
 
 class MySQLDataTable(ctk.CTkFrame):
-    def __init__(self, master, columns, table_name, server, is_view=False, db_config=None, **kwargs):
+    def __init__(self, master, columns, table_name, server, db_config=None, **kwargs):
         super().__init__(master, **kwargs)
         
+        self.is_view = bool(table_name in VIEWS)
+        self.is_relationship = bool(table_name in RELATIONSHIPS)
         self.master = master
         self.name = table_name
         self.server = server
@@ -161,14 +181,14 @@ class MySQLDataTable(ctk.CTkFrame):
         self.action_bar.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
 
 
-        if not is_view:
-            self.add_btn = ctk.CTkButton(self.action_bar, text="+ Add Entry", fg_color="#28a745", 
-                                         hover_color="#218838", command=self.add_action)
+        if not self.is_view:
+            self.add_btn = ctk.CTkButton(self.action_bar, text="+ Add Entry", fg_color="#FFC904", 
+                                         hover_color="#E6B800", text_color="#000000", command=self.add_action)
             self.add_btn.pack(side="left", padx=10)
 
             self.delete_btn = ctk.CTkButton(self.action_bar, text="Delete Selected", 
-                                            fg_color="#dc3545", hover_color="#c82333", 
-                                            command=self.delete_action)
+                                            fg_color="#FFC904", hover_color="#E6B800", 
+                                            text_color="#000000", command=self.delete_action)
             self.delete_btn.pack(side="left")
 
         self._apply_style()
@@ -176,10 +196,10 @@ class MySQLDataTable(ctk.CTkFrame):
     def _apply_style(self):
         style = ttk.Style()
         style.theme_use("default")
-        style.configure("Treeview", background="#2b2b2b", foreground="white", 
-                        fieldbackground="#2b2b2b", borderwidth=0, rowheight=30)
-        style.map('Treeview', background=[('selected', '#1f538d')])
-        style.configure("Treeview.Heading", background="#565b5e", foreground="white", relief="flat")
+        style.configure("Treeview", background="#000000", foreground="#FFFFFF", 
+                        fieldbackground="#000000", borderwidth=0, rowheight=30)
+        style.map('Treeview', background=[('selected', '#FFC904')])
+        style.configure("Treeview.Heading", background="#FFC904", foreground="#000000", relief="flat")
 
     # --- CRUD Placeholder Logic ---
 
@@ -187,10 +207,12 @@ class MySQLDataTable(ctk.CTkFrame):
         # Prevent opening multiple instances of the same popup
         if self.popup_window is None or not self.popup_window.winfo_exists():
             self.popup_window = InputPopup(self)
+
+
         else:
             self.popup_window.focus()
         # After database insertion, you would call self.fetch_from_mysql()
-            
+        
     
 
     def delete_action(self):
@@ -206,8 +228,10 @@ class MySQLDataTable(ctk.CTkFrame):
         item_values = self.tree.item(selected_item)['values']
         print(f"Deleting record with ID: {item_values[0]}")
         self.server.delete_by_id(self.name,item_values[0])
-        
-        self.tree.delete(selected_item)
+
+        for item in self.tree.get_children(): # deletes all elements that have matching keys
+            if(self.tree.item(item)['values'][0] == item_values[0]):
+                self.tree.delete(item)
 
             # Run SQL: DELETE FROM table WHERE id = item_values[0]
 
@@ -268,7 +292,7 @@ class PortableDatabaseTabs(ctk.CTkTabview):
 class MainApp(ctk.CTk):
     def __init__(self, server):
         super().__init__()
-        self.geometry("1000x800")
+        self.geometry("1300x800")
         self.title("Restaurant Sales")
 
         self.server = server
@@ -295,11 +319,18 @@ class MainApp(ctk.CTk):
         self.tabview = ctk.CTkTabview(
             self, 
             command=self.on_tab_switched, # <--- Triggered on click
-            segmented_button_selected_color="#1f538d"
+            segmented_button_selected_color="#FFC904",
+            segmented_button_selected_hover_color="#E6B800"
+        )
+        self.tabview._segmented_button.configure(
+            selected_color="black",           # Your specific request
+            selected_hover_color="#333333"   # Slightly lighter black on hover
         )
         self.tabview.pack(expand=True, fill="both", padx=20, pady=20)
 
-        self.views = ('EmployeeView','RestaurantSummary') # views, no add button
+
+
+
         # 4. Pre-create the tab structures
         for name in self.categories:
             tab_object = self.tabview.add(name)
@@ -318,8 +349,7 @@ class MainApp(ctk.CTk):
             table = MySQLDataTable(tab_object, 
                                    columns=self.server.cursor.fetchall(), 
                                    table_name=name,
-                                   server=self.server,
-                                   is_view=name in self.views)
+                                   server=self.server)
             table.pack(expand=True, fill="both")
             
             # Save reference to the table so we can update it later
