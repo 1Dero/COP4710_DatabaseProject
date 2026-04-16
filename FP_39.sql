@@ -90,7 +90,8 @@ SELECT
     e.phone,
     e.email,
     'Full-Time' AS employment_type, 
-    f.salary AS annual_pay_or_hourly_rate, 
+    f.salary AS annual_pay, 
+    NULL AS hourly_rate,
     NULL AS weekly_hours
 FROM Employees e
 JOIN FullTime f ON e.eid = f.eid
@@ -104,6 +105,7 @@ SELECT
     e.phone,
     e.email,
     'Part-Time' AS employment_type, 
+    NULL AS annual_pay,
     p.pay AS annual_pay_or_hourly_rate, 
     p.hours AS weekly_hours
 FROM Employees e
