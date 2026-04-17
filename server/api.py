@@ -319,6 +319,18 @@ class Connection():
 
         except Exception as e:
             print("Database Error", str(e))
+    
+    def link_menu_ingredient(self, mid, iid):
+        try:
+            self.cursor.execute(
+                "INSERT INTO MenuItemUses (mid, iid) VALUES (%s, %s)", 
+                (mid, iid)
+            )
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Linking Error: {e}")
+            return False
 
     def add_order(self, price, o_date, tip=0):
         try:

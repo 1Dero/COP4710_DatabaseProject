@@ -150,6 +150,22 @@ CROSS JOIN (
         SUM(cost * quantity) AS capital_values
     FROM Item
 ) cap;
+
+--  END OF RESTAURANT CONFIGURATION 
+
+-- MenuOverview view refactored to remove 'rid' groupings and the undefined RestaurantStock table, while still showing all menu items and their ingredients
+CREATE VIEW MenuOverview AS
+SELECT
+    m.name AS menu_item,
+    m.price AS price,
+    IFNULL(GROUP_CONCAT(it.name SEPARATOR ', '), '---') AS ingredients
+FROM Menu m
+LEFT JOIN MenuItemUses miu ON m.mid = miu.mid
+LEFT JOIN Ingredients i ON miu.iid = i.iid
+LEFT JOIN Item it ON i.iid = it.iid 
+GROUP BY m.mid, m.name, m.price;
+
+
 -- =========================================================
 -- 1. Restaurant Configuration
 -- =========================================================

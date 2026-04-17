@@ -15,14 +15,15 @@ from server.api import Connection, get_db_connection
 
 
 # GLOBAL VARS
-VIEWS = ('employeeview','restaurantsummary') # views, no add button
+VIEWS = ('employeeview','restaurantsummary', 'menuoverview') # views, no add button
 RELATIONSHIPS = ('ordermenuitem','restaurantstock','menuitemuses')
-ALLOWED_TABLES = ['employeeview', 'restaurantsummary', 'menu', 'orders', 'item', 'employees']
+ALLOWED_TABLES = ['employeeview', 'restaurantsummary', 'menuoverview', 'menu', 'orders', 'item', 'employees']
 
 # Mapping of Database Name -> UI Display Name
 DISPLAY_NAMES = {
     'employeeview': 'Staff Overview',
     'restaurantsummary': 'Financial Summary',
+    'menuoverview': 'Menu Overview',
     'item': 'Inventory'
 }
 
@@ -137,6 +138,22 @@ class InputPopup(ctk.CTkToplevel):
             )
             self.item_toggle.pack(pady=5)
             self.refresh_item_fields()
+        elif self.parent.name == "menu":
+            self.geometry("400x600")
+            
+            # 1. Create the standard Name and Price fields first
+            self.build_fields(['name', 'price'])
+            
+            # 2. Add a label for the ingredients section
+            label = ctk.CTkLabel(self.entry_container, text="Select Ingredients:", font=("Arial", 12, "bold"))
+            label.pack(anchor="w", pady=(10, 0))
+            
+            # 3. Fetch Ingredients from DB
+            self.parent.server.cursor.execute("SELECT i.iid, it.name FROM Ingredients i JOIN Item it ON i.iid = it.iid")
+            ingredient_options = self.parent.server.cursor.fetchall()
+            
+            # 4. Build the multi-select WITHOUT clearing the Name/Price fields
+            self.build_multi_select(ingredient_options, clear_first=False)
         else:
             # Default behavior for other tables
             self.columns = parent.columns[(1 if not self.parent.is_relationship else 0):]
@@ -159,6 +176,30 @@ class InputPopup(ctk.CTkToplevel):
             entry = ctk.CTkEntry(self.entry_container, placeholder_text=col)
             entry.pack(pady=(0, 10), fill="x")
             self.entries[col] = entry
+    
+    def build_multi_select(self, options, clear_first=True):
+        """Creates a scrollable list of checkboxes for ingredients."""
+        if clear_first:
+            for widget in self.entry_container.winfo_children():
+                widget.destroy()
+
+        self.ingredient_vars = {}
+        
+        scroll_frame = ctk.CTkScrollableFrame(self.entry_container, height=250)
+        scroll_frame.pack(fill="both", expand=True, pady=10)
+
+        for iid, name in options:
+            var = ctk.BooleanVar(value=False)
+            cb = ctk.CTkCheckBox(
+                scroll_frame, 
+                text=name, 
+                variable=var, 
+                fg_color="#FFC904", 
+                hover_color="#E6B800",
+                text_color="white"
+            )
+            cb.pack(anchor="w", pady=5)
+            self.ingredient_vars[iid] = var
 
     def refresh_employee_fields(self):
         """Switches columns based on Full-Time vs Part-Time."""
@@ -214,7 +255,18 @@ class InputPopup(ctk.CTkToplevel):
                         data['name'], float(data['cost']), int(data['quantity'])
                     )
             elif table == "menu":
-                success = server.add_menu(data['name'], float(data['price']))
+                # 1. Add the Menu Item
+                new_mid = server.add_menu(data['name'], float(data['price']))
+                
+                if new_mid:
+                    # 2. Get all checked ingredient IDs
+                    selected_iids = [iid for iid, var in self.ingredient_vars.items() if var.get()]
+                    
+                    # 3. Link them in MenuItemUses
+                    for iid in selected_iids:
+                        server.link_menu_ingredient(new_mid, iid)
+                    
+                    success = True
             elif table == "orders":
                 success = server.add_order(float(data['price']), data['o_date'], float(data.get('tip', 0)))
             else:
