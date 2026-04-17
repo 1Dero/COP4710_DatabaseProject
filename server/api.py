@@ -441,6 +441,67 @@ class Connection():
 
         except Exception as e:
             print("Database Error:", str(e))
+
+    def update_full_time_employee(self, eid, name, role, email, phone, salary):
+        try:
+            self.cursor.execute("""
+                UPDATE Employees SET name=%s, role=%s, email=%s, phone=%s WHERE eid=%s
+            """, (name, role, email, phone, eid))
+            self.cursor.execute("UPDATE FullTime SET salary=%s WHERE eid=%s", (salary, eid))
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Update Error: {e}")
+            return False
+
+    def update_part_time_employee(self, eid, name, role, email, phone, hours, pay):
+        try:
+            self.cursor.execute("""
+                UPDATE Employees SET name=%s, role=%s, email=%s, phone=%s WHERE eid=%s
+            """, (name, role, email, phone, eid))
+            self.cursor.execute("UPDATE PartTime SET hours=%s, pay=%s WHERE eid=%s", (hours, pay, eid))
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Update Error: {e}")
+            return False
+
+    def update_menu(self, mid, name, price):
+        try:
+            self.cursor.execute("UPDATE Menu SET name=%s, price=%s WHERE mid=%s", (name, price, mid))
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Update Error: {e}")
+            return False
+    
+    def update_menu_ingredients(self, mid, ingredient_ids):
+        """Clears existing ingredients for a menu item and replaces them with a new list."""
+        try:
+            # 1. Remove all old relationships
+            self.cursor.execute("DELETE FROM MenuItemUses WHERE mid = %s", (mid,))
+            
+            # 2. Insert the new selection
+            for iid in ingredient_ids:
+                self.cursor.execute(
+                    "INSERT INTO MenuItemUses (mid, iid) VALUES (%s, %s)", 
+                    (mid, iid)
+                )
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Menu Ingredient Update Error: {e}")
+            self.connection.rollback()
+            return False
+
+    def update_item(self, iid, name, cost, quantity):
+        try:
+            self.cursor.execute("UPDATE Item SET name=%s, cost=%s, quantity=%s WHERE iid=%s", (name, cost, quantity, iid))
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Update Error: {e}")
+            return False
     
 
 # --- MAIN EXECUTION ---

@@ -96,11 +96,16 @@ class ClickableLabel(ctk.CTkFrame):
 
 # --- Popup Window Class ---
 class InputPopup(ctk.CTkToplevel):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, edit_data=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.parent = parent
-        self.title("Add New Entry")
-        self.geometry("350x450")
+        self.edit_data = edit_data  # Store the data we are editing
+        self.is_edit_mode = edit_data is not None
+        if self.is_edit_mode:
+            self.title("Update Entry")
+        else:
+            self.title("Add New Entry")
+        self.geometry("600x900")
         self.attributes("-topmost", True)
         self.grab_set()
 
@@ -127,17 +132,19 @@ class InputPopup(ctk.CTkToplevel):
             self.type_toggle.pack(pady=5)
             self.refresh_employee_fields()
         elif self.parent.name == "item":
-            self.is_ingredient = ctk.BooleanVar(value=True)
-            self.item_toggle = ctk.CTkCheckBox(
-                self, 
-                text="Is Ingredient", 
-                variable=self.is_ingredient,
-                command=self.refresh_item_fields,
-                fg_color="#FFC904",
-                hover_color="#E6B800"
-            )
-            self.item_toggle.pack(pady=5)
+            # Only show the checkbox if we are ADDING a new entry
+            if not self.is_edit_mode:
+                self.is_ingredient = ctk.BooleanVar(value=True)
+                self.check = ctk.CTkCheckBox(self.entry_container, text="Is Ingredient", 
+                                             variable=self.is_ingredient, 
+                                             command=self.refresh_item_fields)
+                self.check.pack(pady=10)
+            
             self.refresh_item_fields()
+            
+            # If updating, the common fields (name, cost, qty) are filled normally
+            if self.is_edit_mode:
+                self.autofill_data()
         elif self.parent.name == "menu":
             self.geometry("400x600")
             
@@ -159,10 +166,11 @@ class InputPopup(ctk.CTkToplevel):
             self.columns = parent.columns[(1 if not self.parent.is_relationship else 0):]
             self.build_fields(self.columns)
 
-        
+        if self.is_edit_mode:
+            self.autofill_data()
 
         self.submit_btn = ctk.CTkButton(self, text="Submit", command=self.submit, fg_color="#FFC904", text_color="black")
-        self.submit_btn.pack(pady=20)
+        self.submit_btn.pack(side="bottom", pady=20)
 
     def build_fields(self, columns):
         """Clears and rebuilds entry widgets based on column list."""
@@ -201,28 +209,103 @@ class InputPopup(ctk.CTkToplevel):
             cb.pack(anchor="w", pady=5)
             self.ingredient_vars[iid] = var
 
-    def refresh_employee_fields(self):
-        """Switches columns based on Full-Time vs Part-Time."""
+    def autofill_data(self):
+        """Fills standard fields from the table row data for any table."""
+        # Create a dictionary mapping Column Name -> Row Value
+        # e.g., {'iid': 1, 'name': 'Tomato', 'cost': 0.5, 'quantity': 100}
+        data_map = dict(zip(self.parent.columns, self.edit_data))
+
+        # Handle Employee initial state (needed for the FT/PT checkbox)
+        if self.parent.name in ("employees", "employeeview"):
+            self.refresh_employee_fields(is_initial_load=True)
+
+        # Iterate through the entry widgets we built (name, cost, quantity, etc.)
+        for col_name, entry_widget in self.entries.items():
+            if col_name in data_map:
+                val = str(data_map[col_name])
+                
+                # Clean up display strings
+                if val.lower() in ("none", "---", "null"): 
+                    val = ""
+                
+                # Clear and insert
+                entry_widget.delete(0, 'end')
+                entry_widget.insert(0, val)
+        
+        # Handle the specialized Menu ingredient checkboxes
+        if self.parent.name == "menu":
+            self.autofill_ingredients()
+    
+    def autofill_ingredients(self):
+        """Fetches existing ingredient IDs for the menu item and checks the boxes."""
+        if not self.is_edit_mode or not hasattr(self, 'ingredient_vars'):
+            return
+            
+        mid = self.edit_data[0] # The mid is the first column in 'menu' table
+        query = "SELECT iid FROM MenuItemUses WHERE mid = %s"
+        
+        try:
+            self.parent.server.cursor.execute(query, (mid,))
+            # Create a list of iids currently used by this menu item
+            linked_iids = [row[0] for row in self.parent.server.cursor.fetchall()]
+            
+            # Set checkbox variables to True if their ID is in the linked list
+            for iid, var in self.ingredient_vars.items():
+                var.set(iid in linked_iids)
+        except Exception as e:
+            print(f"Error autofilling ingredients: {e}")
+    
+    def refresh_employee_fields(self, is_initial_load=False):
+        """Rebuilds fields and handles DB lookups for salary/hours/pay."""
+        # 1. Save current basic info (name, role, etc.) to restore later
+        current_values = {col: entry.get() for col, entry in self.entries.items()}
+        
+        server = self.parent.server
+        eid = self.edit_data[0] if self.is_edit_mode else None
+
+        # 2. If opening an existing record, determine type from DB
+        if self.is_edit_mode and is_initial_load:
+            server.cursor.execute("SELECT salary FROM FullTime WHERE eid = %s", (eid,))
+            if server.cursor.fetchone():
+                self.is_full_time.set(True)
+            else:
+                self.is_full_time.set(False)
+
+        # 3. Define and build the columns
         common = ['name', 'role', 'email', 'phone']
         if self.is_full_time.get():
             cols = common + ['salary']
         else:
             cols = common + ['hours', 'pay']
+        
         self.build_fields(cols)
 
+        # 4. Restore common fields
+        for col, value in current_values.items():
+            if col in self.entries and value:
+                self.entries[col].insert(0, value)
+
+        # 5. Fetch and fill the specialized data from the sub-tables
+        if self.is_edit_mode:
+            if self.is_full_time.get():
+                server.cursor.execute("SELECT salary FROM FullTime WHERE eid = %s", (eid,))
+                res = server.cursor.fetchone()
+                if res and self.entries['salary'].get() == "":
+                    self.entries['salary'].insert(0, str(res[0]))
+            else:
+                server.cursor.execute("SELECT hours, pay FROM PartTime WHERE eid = %s", (eid,))
+                res = server.cursor.fetchone()
+                if res:
+                    if self.entries['hours'].get() == "": self.entries['hours'].insert(0, str(res[0]))
+                    if self.entries['pay'].get() == "": self.entries['pay'].insert(0, str(res[1]))
+    
     def refresh_item_fields(self):
-        """Switches columns based on Ingredient vs Appliance."""
-        # Common fields for the Item superclass
-        common = ['name', 'cost', 'quantity']
-        
-        if self.is_ingredient.get():
-            cols = common 
-            self.title("Add New Ingredient")
-        else:
-            cols = common
-            self.title("Add New Appliance")
-            
+        """Builds standard fields for Inventory items (Name, Cost, Quantity)."""
+        cols = ['name', 'cost', 'quantity']
         self.build_fields(cols)
+        
+        mode = "Update" if self.is_edit_mode else "Add"
+        self.title(f"{mode} Inventory Item")
 
     def submit(self):
         data = {col: entry.get().strip() for col, entry in self.entries.items()}
@@ -235,50 +318,85 @@ class InputPopup(ctk.CTkToplevel):
         table = self.parent.name
         success = False
 
+        record_id = self.edit_data[0] if self.is_edit_mode else None
+
         try:
-            if table == "employees":
-                if self.is_full_time.get():
-                    success = server.add_full_time_employee(
-                        data['name'], data['role'], data['email'], data['phone'], float(data['salary'])
+            if self.is_edit_mode:
+                # EDIT Logic
+                if table == "employees":
+                    if self.is_full_time.get():
+                        success = server.update_full_time_employee(
+                            record_id, data['name'], data['role'], data['email'], data['phone'], float(data['salary'])
+                        )
+                    else:
+                        success = server.update_part_time_employee(
+                            record_id, data['name'], data['role'], data['email'], data['phone'], int(data['hours']), float(data['pay'])
+                        )
+                elif table == "item":
+                        success = server.update_item(record_id, data['name'], float(data['cost']), int(data['quantity']))
+                elif table == "menu":
+                    # Update basic info (name/price)
+                    success = server.update_menu(record_id, data['name'], float(data['price']))
+                    if success:
+                        # Update the ingredients list
+                        selected_iids = [iid for iid, var in self.ingredient_vars.items() if var.get()]
+                        server.update_menu_ingredients(record_id, selected_iids)
+                elif table == "orders":
+                    success = server.add_order(
+                        float(data['price']), data['o_date'], float(data.get('tip', 0))
                     )
-                else:
-                    success = server.add_part_time_employee(
-                        data['name'], data['role'], data['email'], data['phone'], int(data['hours']), float(data['pay'])
-                    )
-            elif table == "item":
-                if self.is_ingredient.get():
-                    success = server.add_ingredient(
-                        data['name'], float(data['cost']), int(data['quantity'])
-                    )
-                else:
-                    success = server.add_appliance(
-                        data['name'], float(data['cost']), int(data['quantity'])
-                    )
-            elif table == "menu":
-                # 1. Add the Menu Item
-                new_mid = server.add_menu(data['name'], float(data['price']))
                 
-                if new_mid:
-                    # 2. Get all checked ingredient IDs
-                    selected_iids = [iid for iid, var in self.ingredient_vars.items() if var.get()]
-                    
-                    # 3. Link them in MenuItemUses
-                    for iid in selected_iids:
-                        server.link_menu_ingredient(new_mid, iid)
-                    
-                    success = True
-            elif table == "orders":
-                success = server.add_order(float(data['price']), data['o_date'], float(data.get('tip', 0)))
+                if success:
+                    # Refresh current table data directly
+                    new_data = server.list_table(table)
+                    self.parent.load_data(new_data)
+                    self.destroy()
+                    messagebox.showinfo("Success", "Record updated successfully!")
             else:
-                # Fallback to the generic add for tables without specialized functions
-                success = server.add(table, tuple(data.values()), list(data.keys()))
-            
-            if success:
-                # Refresh current table data
-                new_data = server.list_table(table)
-                self.parent.load_data(new_data)
-                self.destroy()
-                messagebox.showinfo("Success", "Record added successfully!")
+                # ADD Logic
+                if table == "employees":
+                    if self.is_full_time.get():
+                        success = server.add_full_time_employee(
+                            data['name'], data['role'], data['email'], data['phone'], float(data['salary'])
+                        )
+                    else:
+                        success = server.add_part_time_employee(
+                            data['name'], data['role'], data['email'], data['phone'], int(data['hours']), float(data['pay'])
+                        )
+                elif table == "item":
+                    if self.is_ingredient.get():
+                        success = server.add_ingredient(
+                            data['name'], float(data['cost']), int(data['quantity'])
+                        )
+                    else:
+                        success = server.add_appliance(
+                            data['name'], float(data['cost']), int(data['quantity'])
+                        )
+                elif table == "menu":
+                    # 1. Add the Menu Item
+                    new_mid = server.add_menu(data['name'], float(data['price']))
+                    
+                    if new_mid:
+                        # 2. Get all checked ingredient IDs
+                        selected_iids = [iid for iid, var in self.ingredient_vars.items() if var.get()]
+                        
+                        # 3. Link them in MenuItemUses
+                        for iid in selected_iids:
+                            server.link_menu_ingredient(new_mid, iid)
+                        
+                        success = True
+                elif table == "orders":
+                    success = server.add_order(float(data['price']), data['o_date'], float(data.get('tip', 0)))
+                else:
+                    # Fallback to the generic add for tables without specialized functions
+                    success = server.add(table, tuple(data.values()), list(data.keys()))
+
+                if success:
+                    # Refresh current table data
+                    new_data = server.list_table(table)
+                    self.parent.load_data(new_data)
+                    self.destroy()
+                    messagebox.showinfo("Success", "Record added successfully!")
         except Exception as e:
             messagebox.showerror("Error", f"Submission failed: {e}")
 
@@ -338,6 +456,12 @@ class MySQLDataTable(ctk.CTkFrame):
                                          hover_color="#E6B800", text_color="#000000", command=self.add_action)
             self.add_btn.pack(side="left", padx=10)
 
+            # ADD THIS BUTTON:
+            self.update_btn = ctk.CTkButton(self.action_bar, text="Update Selected", 
+                                            fg_color="#FFC904", hover_color="#E6B800", 
+                                            text_color="#000000", command=self.update_action)
+            self.update_btn.pack(side="left", padx=10)
+
             self.delete_btn = ctk.CTkButton(self.action_bar, text="Delete Selected", 
                                             fg_color="#FFC904", hover_color="#E6B800", 
                                             text_color="#000000", command=self.delete_action)
@@ -388,6 +512,18 @@ class MySQLDataTable(ctk.CTkFrame):
                 self.tree.delete(item)
 
             # Run SQL: DELETE FROM table WHERE id = item_values[0]
+    
+    def update_action(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select a record to update.")
+            return
+        
+        # Get the full list of values from the selected row
+        values = self.tree.item(selected[0])['values']
+        
+        # Open the same popup, but pass the data
+        InputPopup(self, edit_data=values)
 
     # --- Data Handling ---
 
