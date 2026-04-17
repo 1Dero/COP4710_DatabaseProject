@@ -343,18 +343,18 @@ class Connection():
     def delete_by_id(self, table_name, record_id):
         try:
             pk_map = {
-                "MenuItemUses":"mid",
-                "OrderMenuItem":"oid",
-                "RestaurantStock":"rid",
-                "Restaurant": "rid",
-                "Employees": "eid",
-                "PartTime": "eid",
-                "FullTime": "eid",
-                "Menu": "mid",
-                "Item": "iid",
-                "Ingredients": "iid",
-                "Appliances": "aid",
-                "Orders": "oid"
+                "menuitemuses":"mid",
+                "ordermenuitem":"oid",
+                "restaurantstock":"rid",
+                "restaurant": "rid",
+                "employees": "eid",
+                "parttime": "eid",
+                "fulltime": "eid",
+                "menu": "mid",
+                "item": "iid",
+                "ingredients": "iid",
+                "appliances": "aid",
+                "orders": "oid"
             }
 
             if table_name not in pk_map:
@@ -380,8 +380,8 @@ class Connection():
             for item in values
         ]
         formatted_names = [str(item) for item in col_names]
-        print(f"({", ".join(formatted_items)})")
-        print(f"({', '.join(formatted_names)})")
+        # print(f"({", ".join(formatted_items)})")
+        # print(f"({', '.join(formatted_names)})")
         print()
         try:
             self.cursor.execute(f"""
