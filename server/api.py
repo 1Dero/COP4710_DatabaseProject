@@ -180,7 +180,7 @@ class Connection():
 
         try:
             conn = self.connection
-            cursor = conn.cursor
+            cursor = self.cursor
 
             # Insert into Employees (superclass)
             cursor.execute("""
@@ -379,7 +379,7 @@ class Connection():
             item if (is_integer(item) or is_float(item)) else f'"{item}"'
             for item in values
         ]
-        formatted_names = [item[0] for item in col_names]
+        formatted_names = [str(item) for item in col_names]
         print(f"({", ".join(formatted_items)})")
         print(f"({', '.join(formatted_names)})")
         print()

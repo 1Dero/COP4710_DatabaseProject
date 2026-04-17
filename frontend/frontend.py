@@ -15,8 +15,16 @@ from server.api import Connection, get_db_connection
 
 
 # GLOBAL VARS
-VIEWS = ('EmployeeView','RestaurantSummary') # views, no add button
-RELATIONSHIPS = ('OrderMenuItem','RestaurantStock','MenuItemUses')
+VIEWS = ('employeeview','restaurantsummary') # views, no add button
+RELATIONSHIPS = ('ordermenuitem','restaurantstock','menuitemuses')
+ALLOWED_TABLES = ['employeeview', 'restaurantsummary', 'menu', 'orders', 'item', 'employees']
+
+# Mapping of Database Name -> UI Display Name
+DISPLAY_NAMES = {
+    'employeeview': 'Staff Overview',
+    'restaurantsummary': 'Financial Summary',
+    'item': 'Inventory'
+}
 
 import customtkinter as ctk
 
@@ -90,45 +98,102 @@ class InputPopup(ctk.CTkToplevel):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.parent = parent
-        self.columns = parent.columns[(1 if not self.parent.is_relationship else 0):] # skip the id if parent is a relationship, 0 otherwise
         self.title("Add New Entry")
-        self.geometry("300x250")
-        
-        # Ensure the popup stays on top and grabs focus
+        self.geometry("350x450")
         self.attributes("-topmost", True)
         self.grab_set()
 
         self.label = ctk.CTkLabel(self, text="Enter Details", font=("Arial", 16, "bold"))
         self.label.pack(pady=10)
 
-        self.entires = {}
-        for col in self.columns:
-            self.entires[col] = ctk.CTkEntry(self, placeholder_text=col)
-            self.entires[col].pack(pady=10, padx=20, fill="x")
+        # Container for the dynamic entry fields
+        self.entry_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.entry_container.pack(fill="both", expand=True, padx=20)
 
-        self.submit_btn = ctk.CTkButton(self, text="Submit", command=self.submit)
+        self.entries = {}
+        
+        # Special logic for the 'employees' table
+        if self.parent.name == "employees":
+            self.is_full_time = ctk.BooleanVar(value=True)
+            self.type_toggle = ctk.CTkCheckBox(
+                self, 
+                text="Full-Time Employee", 
+                variable=self.is_full_time,
+                command=self.refresh_employee_fields,
+                fg_color="#FFC904",
+                hover_color="#E6B800"
+            )
+            self.type_toggle.pack(pady=5)
+            self.refresh_employee_fields()
+        else:
+            # Default behavior for other tables
+            self.columns = parent.columns[(1 if not self.parent.is_relationship else 0):]
+            self.build_fields(self.columns)
+
+        self.submit_btn = ctk.CTkButton(self, text="Submit", command=self.submit, fg_color="#FFC904", text_color="black")
         self.submit_btn.pack(pady=20)
 
-    def submit(self):
-        entires = tuple([value.get() for value in  self.entires.values()])
-        for entry in entires: # check if all entries are present
-            if not entry:
-                messagebox.showwarning("Warning", "All fields are required.")
-                return
+    def build_fields(self, columns):
+        """Clears and rebuilds entry widgets based on column list."""
+        for widget in self.entry_container.winfo_children():
+            widget.destroy()
+        
+        self.entries = {}
+        for col in columns:
+            lbl = ctk.CTkLabel(self.entry_container, text=col.capitalize())
+            lbl.pack(anchor="w")
+            entry = ctk.CTkEntry(self.entry_container, placeholder_text=col)
+            entry.pack(pady=(0, 10), fill="x")
+            self.entries[col] = entry
 
-
-        if self.parent.server.add(self.parent.name,entires, self.columns):
-            self.parent.server.cursor.execute(f"""SELECT * FROM {self.parent.name} 
-                                              ORDER BY 1 
-                                              DESC LIMIT 1
-                                              """)
-            last_row = self.parent.server.cursor.fetchone()
-
-            self.parent.tree.insert("", "end", values=last_row)
-            messagebox.showinfo("Success", "Data added to MySQL!")
-            self.destroy() # Close popup
+    def refresh_employee_fields(self):
+        """Switches columns based on Full-Time vs Part-Time."""
+        common = ['name', 'role', 'email', 'phone']
+        if self.is_full_time.get():
+            cols = common + ['salary']
         else:
-            messagebox.showerror("Error", "Failed to connect to database.")
+            cols = common + ['hours', 'pay']
+        self.build_fields(cols)
+
+    def submit(self):
+        data = {col: entry.get().strip() for col, entry in self.entries.items()}
+        
+        if any(not val for val in data.values()):
+            messagebox.showwarning("Warning", "All fields are required.")
+            return
+
+        server = self.parent.server
+        table = self.parent.name
+        success = False
+
+        try:
+            if table == "employees":
+                if self.is_full_time.get():
+                    success = server.add_full_time_employee(
+                        data['name'], data['role'], data['email'], data['phone'], float(data['salary'])
+                    )
+                else:
+                    success = server.add_part_time_employee(
+                        data['name'], data['role'], data['email'], data['phone'], int(data['hours']), float(data['pay'])
+                    )
+            elif table == "menu":
+                success = server.add_menu(data['name'], float(data['price']))
+            elif table == "item":
+                success = server.add_ingredient(data['name'], float(data['cost']), int(data['quantity']))
+            elif table == "orders":
+                success = server.add_order(float(data['price']), data['o_date'], float(data.get('tip', 0)))
+            else:
+                # Fallback to the generic add for tables without specialized functions
+                success = server.add(table, tuple(data.values()), list(data.keys()))
+            
+            if success:
+                # Refresh current table data
+                new_data = server.list_table(table)
+                self.parent.load_data(new_data)
+                self.destroy()
+                messagebox.showinfo("Success", "Record added successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Submission failed: {e}")
 
 class MySQLDataTable(ctk.CTkFrame):
     def __init__(self, master, columns, table_name, server, db_config=None, **kwargs):
@@ -177,11 +242,11 @@ class MySQLDataTable(ctk.CTkFrame):
         self.tree.configure(yscrollcommand=self.scrollbar.set)
 
         # --- 3. Bottom Bar (Edit & Delete) ---
-        self.action_bar = ctk.CTkFrame(self, fg_color="transparent")
-        self.action_bar.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
-
-
+        
         if not self.is_view:
+            self.action_bar = ctk.CTkFrame(self, fg_color="transparent")
+            self.action_bar.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
+
             self.add_btn = ctk.CTkButton(self.action_bar, text="+ Add Entry", fg_color="#FFC904", 
                                          hover_color="#E6B800", text_color="#000000", command=self.add_action)
             self.add_btn.pack(side="left", padx=10)
@@ -190,6 +255,8 @@ class MySQLDataTable(ctk.CTkFrame):
                                             fg_color="#FFC904", hover_color="#E6B800", 
                                             text_color="#000000", command=self.delete_action)
             self.delete_btn.pack(side="left")
+        else: 
+            pass
 
         self._apply_style()
 
@@ -242,10 +309,18 @@ class MySQLDataTable(ctk.CTkFrame):
         self.update_view(self.full_data)
 
     def update_view(self, rows):
+        """Clears the table and inserts new rows, replacing None with '---'"""
+        # 1. Clear current items
         for item in self.tree.get_children():
             self.tree.delete(item)
+            
+        # 2. Insert rows with the replacement logic
         for row in rows:
-            self.tree.insert("", "end", values=row)
+            # Create a new list where None becomes '---'
+            # We use str(cell) if it's not None to keep numbers and text intact
+            clean_row = [str(cell) if cell is not None else "---" for cell in row]
+            
+            self.tree.insert("", "end", values=clean_row)
 
     def filter_data(self, event=None):
         query = self.search_entry.get().lower()
@@ -301,21 +376,17 @@ class MainApp(ctk.CTk):
         self.editable_field = ClickableLabel(self)
         self.editable_field.pack(side="top", anchor="nw", padx=5, pady=5)
 
-
         self.server.cursor.execute("""
             SELECT table_name 
             FROM information_schema.tables 
-            WHERE table_schema = 'RestaurantSales' 
-            ORDER BY create_time ASC
+            WHERE table_schema = 'restaurantsales' 
         """)
-        raw_tables = self.server.cursor.fetchall()
-        self.categories = [table[0] for table in raw_tables]
+        raw_tables = [t[0] for t in self.server.cursor.fetchall()]
+        self.categories = [t for t in raw_tables if t in ALLOWED_TABLES]
 
         # 2. Store Table References
         # This dict will map Tab Names -> MySQLDataTable objects
         self.table_widgets = {}
-
-        # 3. Create TabView with a 'command' callback
         self.tabview = ctk.CTkTabview(
             self, 
             command=self.on_tab_switched, # <--- Triggered on click
@@ -328,32 +399,27 @@ class MainApp(ctk.CTk):
         )
         self.tabview.pack(expand=True, fill="both", padx=20, pady=20)
 
-
-
-
         # 4. Pre-create the tab structures
-        for name in self.categories:
-            tab_object = self.tabview.add(name)
+        for db_name in self.categories:
+            ui_label = DISPLAY_NAMES.get(db_name, db_name.capitalize())
+            tab_object = self.tabview.add(ui_label)
             
-            # Create the table widget inside the tab immediately
-            # but leave it empty for now
+            # Fetch columns using the actual DB name
             self.server.cursor.execute(f"""
-                SELECT COLUMN_NAME 
-                FROM information_schema.columns 
-                WHERE table_schema = "RestaurantSales"
-                AND table_name = "{name}"
+                SELECT COLUMN_NAME FROM information_schema.columns 
+                WHERE table_schema = "restaurantsales" AND table_name = "{db_name}"
                 ORDER BY ORDINAL_POSITION
             """)
+            cols = [col[0] for col in self.server.cursor.fetchall()]
 
-
+            # Pass the REAL db_name to the table so SQL queries don't break
             table = MySQLDataTable(tab_object, 
-                                   columns=self.server.cursor.fetchall(), 
-                                   table_name=name,
+                                   columns=cols, 
+                                   table_name=db_name,
                                    server=self.server)
             table.pack(expand=True, fill="both")
-            
-            # Save reference to the table so we can update it later
-            self.table_widgets[name] = table
+
+            self.table_widgets[ui_label] = table
 
         # 5. Load the initial tab manually on startup
         self.on_tab_switched()
@@ -361,14 +427,15 @@ class MainApp(ctk.CTk):
     def on_tab_switched(self):
         """This runs every time the user clicks a tab."""
         selected_tab = self.tabview.get()
-        print(f"Table switched to: {selected_tab}")
+        
+        if not selected_tab or selected_tab not in self.table_widgets:
+            return
 
         # Get the specific table widget for this tab
         target_table = self.table_widgets[selected_tab]
-        # Simulation: Fetching data based on the tab name
-        # In production, replace this with: 
-        # data = db.execute(f"SELECT * FROM employees WHERE dept='{selected_tab}'")
-        db_results = self.server.list_table(selected_tab)
+        
+        # FIX: Pass target_table.name (the real DB name) instead of selected_tab
+        db_results = self.server.list_table(target_table.name)
 
         # Insert the data into the widget
         target_table.load_data(db_results)
