@@ -125,10 +125,24 @@ class InputPopup(ctk.CTkToplevel):
             )
             self.type_toggle.pack(pady=5)
             self.refresh_employee_fields()
+        elif self.parent.name == "item":
+            self.is_ingredient = ctk.BooleanVar(value=True)
+            self.item_toggle = ctk.CTkCheckBox(
+                self, 
+                text="Is Ingredient", 
+                variable=self.is_ingredient,
+                command=self.refresh_item_fields,
+                fg_color="#FFC904",
+                hover_color="#E6B800"
+            )
+            self.item_toggle.pack(pady=5)
+            self.refresh_item_fields()
         else:
             # Default behavior for other tables
             self.columns = parent.columns[(1 if not self.parent.is_relationship else 0):]
             self.build_fields(self.columns)
+
+        
 
         self.submit_btn = ctk.CTkButton(self, text="Submit", command=self.submit, fg_color="#FFC904", text_color="black")
         self.submit_btn.pack(pady=20)
@@ -155,6 +169,20 @@ class InputPopup(ctk.CTkToplevel):
             cols = common + ['hours', 'pay']
         self.build_fields(cols)
 
+    def refresh_item_fields(self):
+        """Switches columns based on Ingredient vs Appliance."""
+        # Common fields for the Item superclass
+        common = ['name', 'cost', 'quantity']
+        
+        if self.is_ingredient.get():
+            cols = common 
+            self.title("Add New Ingredient")
+        else:
+            cols = common
+            self.title("Add New Appliance")
+            
+        self.build_fields(cols)
+
     def submit(self):
         data = {col: entry.get().strip() for col, entry in self.entries.items()}
         
@@ -176,10 +204,17 @@ class InputPopup(ctk.CTkToplevel):
                     success = server.add_part_time_employee(
                         data['name'], data['role'], data['email'], data['phone'], int(data['hours']), float(data['pay'])
                     )
+            elif table == "item":
+                if self.is_ingredient.get():
+                    success = server.add_ingredient(
+                        data['name'], float(data['cost']), int(data['quantity'])
+                    )
+                else:
+                    success = server.add_appliance(
+                        data['name'], float(data['cost']), int(data['quantity'])
+                    )
             elif table == "menu":
                 success = server.add_menu(data['name'], float(data['price']))
-            elif table == "item":
-                success = server.add_ingredient(data['name'], float(data['cost']), int(data['quantity']))
             elif table == "orders":
                 success = server.add_order(float(data['price']), data['o_date'], float(data.get('tip', 0)))
             else:

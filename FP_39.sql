@@ -53,8 +53,8 @@ CREATE TABLE Ingredients(
 );
 
 CREATE TABLE Appliances(
-    aid INT PRIMARY KEY,
-    FOREIGN KEY (aid) REFERENCES Item(iid)
+    iid INT PRIMARY KEY,
+    FOREIGN KEY (iid) REFERENCES Item(iid)
         ON DELETE CASCADE
 );
 
@@ -216,7 +216,7 @@ INSERT INTO Item (iid, name, cost, quantity) VALUES
 -- =========================================================
 -- 5. Sub-categorizing Items
 -- =========================================================
-INSERT INTO Appliances (aid) VALUES (1), (2), (3), (4);
+INSERT INTO Appliances (iid) VALUES (1), (2), (3), (4);
 
 INSERT INTO Ingredients (iid) VALUES 
 (5), (6), (7), (8), (9), (10), (11), (12), (13), (14), (15);
